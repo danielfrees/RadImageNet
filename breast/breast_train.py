@@ -15,6 +15,7 @@ from tensorflow.keras.optimizers import Adam
 import os
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
 import argparse
+from tqdm import tqdm
 
 
 parser = argparse.ArgumentParser()
@@ -58,25 +59,25 @@ def get_compiled_model():
     else:
         if args.model_name == 'IRV2':
             if database == 'RadImageNet':
-                model_dir ="../RadImageNet_models/RadImageNet-IRV2-notop.h5"
+                model_dir ="../RadImageNet_models/RadImageNet-IRV2_notop.h5"
                 base_model = InceptionResNetV2(weights=model_dir, input_shape=(image_size, image_size, 3), include_top=False,pooling='avg')
             else:
                 base_model = InceptionResNetV2(weights='imagenet', input_shape=(image_size, image_size, 3),include_top=False,pooling='avg')
         if args.model_name == 'ResNet50':
             if database == 'RadImageNet':
-                model_dir = "../RadImageNet_models/RadImageNet-ResNet50-notop.h5"
+                model_dir = "../RadImageNet_models/RadImageNet-ResNet50_notop.h5"
                 base_model = ResNet50(weights=model_dir, input_shape=(image_size, image_size, 3), include_top=False,pooling='avg')
             else:
                 base_model = ResNet50(weights='imagenet', input_shape=(image_size, image_size, 3), include_top=False,pooling='avg')
         if args.model_name == 'DenseNet121':
             if database == 'RadImageNet':
-                model_dir = "../RadImageNet_models/RadImageNet-DenseNet121-notop.h5"
+                model_dir = "../RadImageNet_models/RadImageNet-DenseNet121_notop.h5"
                 base_model = DenseNet121(weights=model_dir, input_shape=(image_size, image_size, 3), include_top=False,pooling='avg')
             else:
                 base_model = DenseNet121(weights='imagenet', input_shape=(image_size, image_size, 3), include_top=False,pooling='avg')
         if args.model_name == 'InceptionV3':
             if database == 'RadImageNet':
-                model_dir = "../RadImageNet_models/RadImageNet-InceptionV3-notop.h5"
+                model_dir = "../RadImageNet_models/RadImageNet-InceptionV3_notop.h5"
                 base_model = InceptionV3(weights=model_dir, input_shape=(image_size, image_size, 3), include_top=False,pooling='avg') 
             else:
                 base_model = InceptionV3(weights='imagenet', input_shape=(image_size, image_size, 3), include_top=False,pooling='avg')
@@ -136,7 +137,7 @@ def run_model():
     
     
 # In[17]:
-for i in range(5):
+for i in tqdm(range(5)):
     df_train=pd.read_csv("dataframe/breast_train_fold"+str(i+1)+".csv")
     df_val=pd.read_csv("dataframe/breast_val_fold"+str(i+1)+".csv")
     train_data_generator = ImageDataGenerator(
