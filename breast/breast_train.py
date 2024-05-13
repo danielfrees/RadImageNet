@@ -92,7 +92,7 @@ def get_compiled_model():
     y = Dropout(0.5)(y)
     predictions = Dense(2, activation='softmax')(y)
     model = Model(inputs=base_model.input, outputs=predictions)
-    adam = Adam(lr=args.lr)
+    adam = Adam(learning_rate=args.lr)
     model.compile(optimizer=adam, loss=BinaryCrossentropy(), metrics=[keras.metrics.AUC(name='auc')])
     return model
 
@@ -111,18 +111,16 @@ def run_model():
     save_model_dir = './models/'
     if not os.path.exists(save_model_dir):
         os.mkdir(save_model_dir)
-    filepath= "models/breast-"+args.structure+"-fold" + str(i+1) + "-" + database + "-" + args.model_name + "-" + str(image_size) + "-" + str(batch_size) + "-"+str(args.lr)+ ".h5"   
+    filepath= "models/breast-"+args.structure+"-fold" + str(i+1) + "-" + database + "-" + args.model_name + "-" + str(image_size) + "-" + str(batch_size) + "-"+str(args.lr)+ ".h5" +".keras" 
     
     
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
-    history = model.fit_generator(
+    history = model.fit(
             train_generator,
-            epochs=num_epoches,
-            steps_per_epoch=train_steps,
+            epochs=int(num_epoches),
+            steps_per_epoch=int(train_steps),
             validation_data=validation_generator,
-            validation_steps=val_steps,
-            use_multiprocessing=True,
-            workers=10,
+            validation_steps=int(val_steps),
             callbacks=[checkpoint])
     ### Save training loss
     train_auc = history.history['auc']
