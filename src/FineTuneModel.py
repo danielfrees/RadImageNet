@@ -81,7 +81,6 @@ def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module
 
     # Modify the last layer to fit the binary classification task
     manage_layer_freezing(base_model, args.structure)
-    print(base_model)
 
     # Move the model to the specified device
     model = FineTuneModel(base_model).to(device)
@@ -94,7 +93,7 @@ def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module
 
     return model, optimizer, loss
     
-def load_base_model(model_name: str, database: str, device: nn.torch_device) -> nn.Module:
+def load_base_model(model_name: str, database: str, device: torch.device) -> nn.Module:
     """
     Loads a pre-trained model based on the specified model name and database, 
     and transfers it to the given device. It supports loading custom weights 
@@ -112,20 +111,22 @@ def load_base_model(model_name: str, database: str, device: nn.torch_device) -> 
         Exception: If the weights for RadImageNet models do not exist at the specified path.
     """
     base_model = None
-    model_dir = f"../RadImageNet_models/RadImageNet-{model_name}_notop.h5"
+    model_dir = f"./RadImageNet_pytorch/{model_name}.pt"
     
-    # Load the appropriate pre-trained model based on model name and whether it was trained on ImageNet
-    if model_name == 'IRV2' or model_name == 'InceptionV3':
-        base_model = models.inception_v3(pretrained=(database == 'ImageNet'))
+    if model_name == 'InceptionV3':
+        weights = "IMAGENET1K_V1" if database == 'ImageNet' else None
+        base_model = models.inception_v3(weights=weights)
     elif model_name == 'ResNet50':
-        base_model = models.resnet50(pretrained=(database == 'ImageNet'))
+        weights = "IMAGENET1K_V1" if database == 'ImageNet' else None
+        base_model = models.resnet50(weights=weights)
     elif model_name == 'DenseNet121':
-        base_model = models.densenet121(pretrained=(database == 'ImageNet'))
-    
+        weights = "IMAGENET1K_V1" if database == 'ImageNet' else None
+        base_model = models.densenet121(weights=weights)
+
     # Transfer the model to the specified device
     base_model = base_model.to(device)
     
-    # Load custom RadImageNet weights if specified and check if the file exists
+    # Load custom RadImageNet weights if specified and the file exists
     if database == 'RadImageNet' and os.path.exists(model_dir):
         base_model.load_state_dict(torch.load(model_dir, map_location=device))
     elif database == 'RadImageNet':

@@ -1,5 +1,6 @@
 ### RadDataSet.py
 
+import os
 from PIL import Image
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -7,7 +8,7 @@ from torchvision import transforms
 
 # Custom Dataset class for handling image loading
 class RadDataset(Dataset):
-    def __init__(self, dataframe: torch.Tensor, transform=None):
+    def __init__(self, dataframe: torch.Tensor, partial_path: str, transform=None):
         """
         Initializes the dataset.
 
@@ -17,6 +18,7 @@ class RadDataset(Dataset):
         """
         self.df = dataframe
         self.transform = transform
+        self.partial_path = partial_path
 
     def __len__(self) -> int:
         """Returns the total number of samples in the dataset."""
@@ -31,19 +33,16 @@ class RadDataset(Dataset):
         Returns:
             tuple: (image, label) where image is the transformed image, and label is the corresponding binary label.
         """
-        try:
-            image_path = self.df.iloc[idx, 0]
-            image = Image.open(image_path).convert('RGB')
-            label = 1 if self.df.iloc[idx, 1] == 'yes' else 0
+        image_path = os.path.join(self.partial_path, self.df.iloc[idx, 0])
+        image = Image.open(image_path).convert('RGB')
+        label = 1 if self.df.iloc[idx, 1] == 'yes' else 0
 
-            if self.transform:
-                image = self.transform(image)
-        except Exception as e:
-            return None, None
+        if self.transform:
+            image = self.transform(image)
 
         return image, label
 
-def create_dataloaders(train_df, val_df, batch_size: int, image_size: int):
+def create_dataloaders(train_df, val_df, batch_size: int, image_size: int, partial_path: str) -> tuple[DataLoader, DataLoader]:
     """
     Creates training and validation data loaders.
 
@@ -71,8 +70,8 @@ def create_dataloaders(train_df, val_df, batch_size: int, image_size: int):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    train_dataset = RadDataset(train_df, transform=train_transform)
-    val_dataset = RadDataset(val_df, transform=val_transform)
+    train_dataset = RadDataset(train_df, transform=train_transform, partial_path=partial_path)
+    val_dataset = RadDataset(val_df, transform=val_transform, partial_path=partial_path)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
