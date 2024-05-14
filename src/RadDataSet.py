@@ -1,27 +1,61 @@
+### RadDataSet.py
 
 from PIL import Image
+import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
 # Custom Dataset class for handling image loading
 class RadDataset(Dataset):
-    def __init__(self, dataframe, transform=None):
+    def __init__(self, dataframe: torch.Tensor, transform=None):
+        """
+        Initializes the dataset.
+
+        Args:
+            dataframe (torch.Tensor): A dataframe containing the paths to the images and their corresponding labels.
+            transform (callable, optional): Optional transform to be applied on a sample.
+        """
         self.df = dataframe
         self.transform = transform
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Returns the total number of samples in the dataset."""
         return len(self.df)
 
-    def __getitem__(self, idx):
-        image = Image.open(self.df.iloc[idx, 0]).convert('RGB')
-        label = 1 if self.df.iloc[idx, 1] == 'yes' else 0
+    def __getitem__(self, idx: int):
+        """Fetches the image and label at the index `idx` and applies transformations if any.
 
-        if self.transform:
-            image = self.transform(image)
+        Args:
+            idx (int): The index of the item.
+
+        Returns:
+            tuple: (image, label) where image is the transformed image, and label is the corresponding binary label.
+        """
+        try:
+            image_path = self.df.iloc[idx, 0]
+            image = Image.open(image_path).convert('RGB')
+            label = 1 if self.df.iloc[idx, 1] == 'yes' else 0
+
+            if self.transform:
+                image = self.transform(image)
+        except Exception as e:
+            return None, None
 
         return image, label
 
-def create_dataloaders(train_df, val_df, batch_size, image_size):
+def create_dataloaders(train_df, val_df, batch_size: int, image_size: int):
+    """
+    Creates training and validation data loaders.
+
+    Args:
+        train_df (DataFrame): Dataframe containing training data.
+        val_df (DataFrame): Dataframe containing validation data.
+        batch_size (int): The size of batches.
+        image_size (int): The size to which each image is resized.
+
+    Returns:
+        tuple: (train_loader, val_loader) DataLoaders for the training and validation datasets.
+    """
     train_transform = transforms.Compose([
         transforms.Resize((image_size, image_size)),
         transforms.RandomHorizontalFlip(),
@@ -31,7 +65,6 @@ def create_dataloaders(train_df, val_df, batch_size, image_size):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # Validation transformations without augmentation
     val_transform = transforms.Compose([
         transforms.Resize((image_size, image_size)),
         transforms.ToTensor(),
