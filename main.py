@@ -12,6 +12,7 @@ from src.RadDataSet import create_dataloaders
 from src.run_model import run_model
 from src.Backbone import get_compiled_model
 from src.find_data_folds import find_data_folds
+from src.create_dfs import create_dfs
 
 
 def main() -> None:
@@ -45,8 +46,8 @@ def main() -> None:
     data_path = os.path.join(partial_path, 'dataframe')
 
     # Determine available folds for training and validation
-    train_folds = find_data_folds(data_path, 'train_fold')
-    val_folds = find_data_folds(data_path, 'val_fold')
+    train_folds = find_data_folds(data_path, 'train')
+    val_folds = find_data_folds(data_path, 'val')
 
     if args.verbose:
         print(f"Found {len(train_folds)} training folds and {len(val_folds)} validation folds")
@@ -58,8 +59,7 @@ def main() -> None:
         if args.verbose:
             print(f"Processing training fold: {train_file} and validation fold: {val_file}")
 
-        train_df = pd.read_csv(os.path.join(data_path, train_file))
-        val_df = pd.read_csv(os.path.join(data_path, val_file))
+        train_df, val_df = create_dfs(data_path, train_file, val_file, args.data_dir)
 
         train_loader, val_loader = create_dataloaders(train_df, val_df, args.batch_size, args.image_size, partial_path)
 

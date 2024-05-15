@@ -17,8 +17,11 @@ def validate_args(args: Namespace) -> None:
     """
     # Validate data directory
     full_path = os.path.join('data', args.data_dir)
+    valid_dirs = ['acl', 'breast', 'hemorrhage']
     if not os.path.isdir(full_path):
         raise FileNotFoundError(f"The directory specified does not exist: {full_path}")
+    if args.data_dir not in valid_dirs:
+        raise ValueError(f"Data directory '{args.data_dir}' not yet supported. Please choose from {valid_dirs}.")
 
     # Validate database choice
     valid_databases = ['RadImageNet', 'ImageNet']

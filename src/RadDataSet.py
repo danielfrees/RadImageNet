@@ -35,7 +35,7 @@ class RadDataset(Dataset):
         """
         image_path = os.path.join(self.partial_path, self.df.iloc[idx, 0])
         image = Image.open(image_path).convert('RGB')
-        label = 1 if self.df.iloc[idx, 1] == 'yes' else 0
+        label = 1 if self.df.iloc[idx, 1] in {'yes', 'malignant'} else 0
 
         if self.transform:
             image = self.transform(image)

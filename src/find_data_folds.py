@@ -19,6 +19,7 @@ def find_data_folds(directory: str, prefix: str) -> List[str]:
         ['train_fold1.csv', 'train_fold2.csv', 'train_fold3.csv']
     """
     files = os.listdir(directory)
-    folds = [f for f in files if f.startswith(prefix) and f.endswith('.csv')]
+    #find all files which contain the prefix, they dont have to start with it
+    folds = [f for f in files if prefix in f and f.endswith('.csv')]
     folds.sort()
     return folds
