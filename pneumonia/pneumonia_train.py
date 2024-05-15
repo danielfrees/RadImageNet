@@ -45,6 +45,10 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from datetime import datetime
 
+print("GPU?")
+print(tf.config.list_physical_devices('GPU'))
+print()
+
 
 
 
@@ -209,7 +213,7 @@ df_loss = pd.DataFrame({'train_loss':train_loss, 'train_acc':train_acc, 'val_los
 
 
 
-d_loss.to_csv("loss/pneumonia-"+args.structure+ "-" + database + "-" + args.model_name + "-" + str(image_size) + "-" + str(batch_size) + "-"+str(args.lr)+ ".csv", index=False)
+df_loss.to_csv("loss/pneumonia-"+args.structure+ "-" + database + "-" + args.model_name + "-" + str(image_size) + "-" + str(batch_size) + "-"+str(args.lr)+ ".csv", index=False)
 
 
 

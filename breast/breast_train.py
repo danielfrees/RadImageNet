@@ -17,6 +17,9 @@ from tensorflow.keras.applications.imagenet_utils import preprocess_input
 import argparse
 from tqdm import tqdm
 
+print("GPU?")
+print(tf.config.list_physical_devices('GPU'))
+print()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu_node', type=str, help='specify gpu nodes')
