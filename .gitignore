@@ -5,4 +5,5 @@
 *.keras
 *.pt
 *.h5
+*.pkl
 
