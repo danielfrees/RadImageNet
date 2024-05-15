@@ -1,9 +1,10 @@
 */RadImageNet_models/*
+RadImageNet_pytorch/*
 */models/*
-.DS_Store
+*/__pycache__/*
+*.DS_Store
 .ipynb_checkpoint
 *.keras
 *.pt
 *.h5
 *.pkl
-
