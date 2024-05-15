@@ -4,3 +4,5 @@ RadImageNet_models/*
 .ipynb_checkpoint
 *.keras
 *.pt
+*.h5
+
