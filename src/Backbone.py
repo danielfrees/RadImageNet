@@ -17,7 +17,7 @@ class Backbone(nn.Module):
         dropout (nn.Dropout): Dropout layer to reduce overfitting.
     """
 
-    def __init__(self, base_model: nn.Module):
+    def __init__(self, base_model: nn.Module, model_name: str):
         """
         Initializes the BackboneModel class by setting up the modified base model and the new classifier.
 
@@ -25,21 +25,27 @@ class Backbone(nn.Module):
             base_model (nn.Module): The pre-trained base model from which the last layer will be removed.
         """
         super(Backbone, self).__init__()
+        self.model_name = model_name
         # Extract the base model without the last layer
         self.backbone = nn.Sequential(*list(base_model.children())[:-1])
                             
     def forward(self, x):
-        return self.backbone(x)
+        x = self.backbone(x)
+        # DenseNet121 requires additional operations for dimensionality reduction
+        if self.model_name == 'DenseNet121':
+            x = nn.functional.relu(x, inplace=True)
+            x = nn.functional.adaptive_avg_pool2d(x, (1, 1))
+        x = torch.flatten(x, 1)
+        return x
 
     
 class Classifier(nn.Module):
     def __init__(self, num_in_features, num_class):
-        super().__init__()
+        super(Classifier, self).__init__()
         self.drop_out = nn.Dropout()
         self.linear = nn.Linear(num_in_features, num_class)
 
     def forward(self, x):
-        x = x.view(x.size(0), -1)
         x = self.drop_out(x)
         x = self.linear(x)
         return x
@@ -106,7 +112,7 @@ def load_base_model(model_name: str, database: str, device: torch.device) -> nn.
         base_model = models.densenet121(weights=weights)
     # Determine the number of input features for the classifier
     num_in_features = list(base_model.children())[-1].in_features
-    backbone = Backbone(base_model)
+    backbone = Backbone(base_model, model_name)
 
     # Load custom RadImageNet weights if specified and the file exists
     if database == 'RadImageNet' and os.path.exists(model_dir):
