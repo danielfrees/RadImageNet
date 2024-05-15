@@ -2,4 +2,5 @@ RadImageNet_models/*
 */models/*
 .DS_Store
 .ipynb_checkpoint
-
+*.keras
+*.pt
