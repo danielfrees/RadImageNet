@@ -68,10 +68,7 @@ def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module
             - CrossEntropyLoss: The loss function to be used during training.
     """
     # Load the base model with modified classifier layer
-    model = load_base_model(args.model_name, args.database, device)
-
-    # Modify the last layer to fit the binary classification task
-    manage_layer_freezing(model, args.structure)
+    model = load_base_model(args.model_name, args.database, device, args)
 
     # Set up the optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -81,7 +78,7 @@ def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module
 
     return model, optimizer, loss
     
-def load_base_model(model_name: str, database: str, device: torch.device) -> nn.Module:
+def load_base_model(model_name: str, database: str, device: torch.device, args: Namespace) -> nn.Module:
     """
     Loads a pre-trained model based on the specified model name and database, 
     and transfers it to the given device. It supports loading custom weights 
@@ -91,6 +88,7 @@ def load_base_model(model_name: str, database: str, device: torch.device) -> nn.
         model_name (str): Name of the model to load (e.g., 'IRV2', 'ResNet50', 'DenseNet121').
         database (str): Indicates the dataset used to pre-train the model ('ImageNet' or 'RadImageNet').
         device (torch.device): The device (e.g., CPU or GPU) to which the model should be transferred.
+        args (Namespace): Command line arguments or other configuration that includes model_name, database, structure, and lr.
 
     Returns:
         Module: The loaded and device-set PyTorch model.
@@ -122,6 +120,7 @@ def load_base_model(model_name: str, database: str, device: torch.device) -> nn.
     elif database == 'RadImageNet':
         raise Exception(f'RadImageNet model weights for {model_name} do not exist at specified path {model_dir}. Please ensure the file exists.')
     
+    manage_layer_freezing(backbone, args.structure)
     classifier = Classifier(num_in_features, 2)
 
     model = nn.Sequential(backbone, classifier)

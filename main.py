@@ -52,7 +52,9 @@ def main() -> None:
         print(f"Found {len(train_folds)} training folds and {len(val_folds)} validation folds")
 
     # Process each corresponding pair of train and validation folds
+    fold = 0
     for train_file, val_file in zip(train_folds, val_folds):
+        fold += 1
         if args.verbose:
             print(f"Processing training fold: {train_file} and validation fold: {val_file}")
 
@@ -69,7 +71,7 @@ def main() -> None:
         if args.verbose:
             print("Model compiled")
 
-        run_model(model, optimizer, loss_fn, train_loader, val_loader, args.epoch, device)
+        run_model(model, optimizer, loss_fn, train_loader, val_loader, args, device, partial_path, fold)
 
 
 if __name__ == "__main__":
