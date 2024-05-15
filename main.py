@@ -7,7 +7,7 @@ import argparse
 from src.validate_args import validate_args
 from src.RadDataSet import create_dataloaders
 from src.run_model import run_model
-from src.FineTuneModel import get_compiled_model
+from src.Backbone import get_compiled_model
 from src.find_data_folds import find_data_folds
 import os
 import pandas as pd
@@ -37,13 +37,11 @@ def main():
 
     # Determine available folds for training and validation
     train_folds = find_data_folds(data_path, 'train_fold')
-    print(train_folds)
     val_folds = find_data_folds(data_path, 'val_fold')
 
     # Process each corresponding pair of train and validation folds
     for train_file, val_file in zip(train_folds, val_folds):
         train_df = pd.read_csv(os.path.join(data_path, train_file))
-        print(train_df.head())
         val_df = pd.read_csv(os.path.join(data_path, val_file))
         
         train_loader, val_loader = create_dataloaders(train_df, val_df, args.batch_size, args.image_size, partial_path)
