@@ -44,10 +44,12 @@ class Classifier(nn.Module):
         super(Classifier, self).__init__()
         self.drop_out = nn.Dropout()
         self.linear = nn.Linear(num_in_features, num_class)
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
         x = self.drop_out(x)
         x = self.linear(x)
+        x = self.softmax(x)
         return x
     
 def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module, optim.Optimizer, nn.CrossEntropyLoss]:
