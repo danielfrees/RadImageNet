@@ -120,7 +120,7 @@ def create_dataloaders(train_df, val_df, batch_size: int, image_size: int, parti
     train_dataset = RadDataset(train_df, transform=train_transform, partial_path=partial_path)
     val_dataset = RadDataset(val_df, transform=val_transform, partial_path=partial_path)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers = 0)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers = 0)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers = 0, pin_memory = True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers = 0, pin_memory = True)
 
     return train_loader, val_loader

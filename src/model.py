@@ -13,6 +13,10 @@ import pandas as pd
 from torch.utils.data import DataLoader
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
+
+
     
 class Backbone(nn.Module):
     """
@@ -49,13 +53,14 @@ class Classifier(nn.Module):
     def __init__(self, num_in_features, num_class):
         super(Classifier, self).__init__()
         self.drop_out = nn.Dropout()
-        self.linear = nn.Linear(num_in_features, num_class)
-        self.softmax = nn.Softmax(dim=1)
+        self.fc = nn.Linear(num_in_features, num_class)
+        nn.init.kaiming_normal_(self.fc.weight)
+        if self.fc.bias is not None:
+            nn.init.constant_(self.fc.bias, 0)
 
     def forward(self, x):
-        x = self.drop_out(x)
-        x = self.linear(x)
-        x = self.softmax(x)
+        # x = self.drop_out(x)
+        x = self.fc(x)
         return x
     
 def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module, optim.Optimizer, nn.CrossEntropyLoss]:
@@ -77,7 +82,7 @@ def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module
     model = load_base_model(args.model_name, args.database, device, args)
 
     # Set up the optimizer
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay = 1e-5)
 
     # Define loss function
     loss = nn.CrossEntropyLoss()
@@ -107,9 +112,12 @@ def load_base_model(model_name: str, database: str, device: torch.device, args: 
     
     if model_name == 'InceptionV3':
         weights = "IMAGENET1K_V1" if database == 'ImageNet' else None
-        base_model = models.inception_v3(weights=weights)
+        base_model = models.inception_v3(weights=weights, 
+                                         transform_input = False, 
+                                         init_weights = False,     # using pretrained weights!!
+                                         aux_logits = False)
         # Remove the auxiliary output layer to allow for smaller input sizes (75x75), otherwise it requires 299x299
-        base_model.AuxLogits = None
+        # base_model.AuxLogits = None
     elif model_name == 'ResNet50':
         weights = "IMAGENET1K_V1" if database == 'ImageNet' else None
         base_model = models.resnet50(weights=weights)
@@ -181,7 +189,6 @@ def manage_layer_freezing(model: nn.Module, structure: str) -> None:
         raise ValueError("Invalid structure parameter. Use 'freezeall', 'unfreezeall', or 'unfreezetopN' where N is a number.")
 
 
-# Function to run the model
 def run_model(
     model: nn.Module,
     optimizer: optim.Optimizer,
@@ -220,6 +227,12 @@ def run_model(
     best_val_loss = float('inf')
     history = {'train_loss': [], 'val_loss': [], 'train_auc': [], 'val_auc': []}
 
+    # log to tensorboard
+    task = partial_path.split(os.sep)[1]
+    current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
+    log_dir = os.path.join('logs', f'{task}_{current_datetime}_{database}_fold_{fold}')
+    writer = SummaryWriter(log_dir=log_dir)
+
     for epoch in tqdm(range(num_epochs)):
         model.train()
         running_loss = 0.0
@@ -246,11 +259,16 @@ def run_model(
         all_labels = np.concatenate(all_labels)
         all_preds = np.concatenate(all_preds)
         
-        train_auc = roc_auc_score(all_labels, all_preds[:, 1])
+        # Apply softmax to logits to get probabilities
+        all_probs = torch.softmax(torch.tensor(all_preds), dim=1).numpy()
+        
+        train_auc = roc_auc_score(all_labels, all_probs[:, 1])
         history['train_auc'].append(train_auc)
 
         if verbose:
             print(f'Epoch {epoch+1}/{num_epochs}, Training Loss: {epoch_loss:.4f}, Training AUC: {train_auc:.4f}')
+        writer.add_scalar('Loss/train', epoch_loss, epoch)
+        writer.add_scalar('AUC/train', train_auc, epoch)
 
         # Perform validation
         model.eval()
@@ -274,11 +292,16 @@ def run_model(
         val_labels = np.concatenate(val_labels)
         val_preds = np.concatenate(val_preds)
         
-        val_auc = roc_auc_score(val_labels, val_preds[:, 1])
+        # Apply softmax to logits to get probabilities
+        val_probs = torch.softmax(torch.tensor(val_preds), dim=1).numpy()
+        
+        val_auc = roc_auc_score(val_labels, val_probs[:, 1])
         history['val_auc'].append(val_auc)
 
         if verbose:
             print(f'Epoch {epoch+1}/{num_epochs}, Validation Loss: {val_loss:.4f}, Validation AUC: {val_auc:.4f}')
+        writer.add_scalar('Loss/val', val_loss, epoch)
+        writer.add_scalar('AUC/val', val_auc, epoch)
 
         # Save the model checkpoint if it has the best validation loss
         if val_loss < best_val_loss:
@@ -291,3 +314,5 @@ def run_model(
     # Save training and validation loss history to CSV
     history_df = pd.DataFrame(history)
     history_df.to_csv(os.path.join(save_model_dir, f'training_history_{args.model_name}_{database}_fold_{fold}_structure_{args.structure}.csv'), index=False)
+
+    writer.close()
