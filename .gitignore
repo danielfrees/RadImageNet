@@ -8,3 +8,4 @@ RadImageNet_pytorch/*
 *.pt
 *.h5
 *.pkl
+*.pth
