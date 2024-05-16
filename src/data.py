@@ -1,4 +1,4 @@
-### RadDataSet.py
+### data.py
 
 import os
 from PIL import Image
@@ -56,13 +56,20 @@ def create_dataloaders(train_df, val_df, batch_size: int, image_size: int, parti
         tuple: (train_loader, val_loader) DataLoaders for the training and validation datasets.
     """
     train_transform = transforms.Compose([
-        transforms.Resize((image_size, image_size)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(10),
-        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=0.1),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+    transforms.Resize((256, 256)),
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomRotation(10),
+    transforms.RandomAffine(
+        degrees=0,
+        translate=(0.1, 0.1),
+        scale=(0.9, 1.1),
+        shear=0.1,
+        fill=None,  # use padding_mode
+        padding_mode='edge'  # use the nearest pixel values to fill the empty areas - like TF
+    ),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
 
     val_transform = transforms.Compose([
         transforms.Resize((image_size, image_size)),

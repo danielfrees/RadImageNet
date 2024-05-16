@@ -1,4 +1,4 @@
-### FineTuneModel.py
+### finetune.py
 
 from argparse import Namespace
 import torch

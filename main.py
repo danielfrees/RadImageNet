@@ -7,12 +7,12 @@ import argparse
 import os
 import pandas as pd
 import torch
-from src.validate_args import validate_args
-from src.RadDataSet import create_dataloaders
-from src.run_model import run_model
-from src.Backbone import get_compiled_model
-from src.find_data_folds import find_data_folds
-from src.create_dfs import create_dfs
+from src.util import validate_args
+from src.util import find_data_folds
+from src.util import create_dfs
+from src.data import create_dataloaders
+from src.model import get_compiled_model, run_model
+
 
 
 def main() -> None:
@@ -34,12 +34,23 @@ def main() -> None:
 
     validate_args(args)
 
-    # Set Cuda Device in Pytorch, discard parallelization for now
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # ====== Set Device, priority cuda > mps > cpu =======
+    # discard parallelization for now
+    device = None
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
+    
 
     if args.verbose:
-        print(f"Using device: {device}")
+        print("\n=====================")
+        print(f"Device Located: {device}")
         print(f"Loading data from directory: {args.data_dir}")
+        print("=====================\n")
 
     # Set the path to your dataframes
     partial_path = os.path.join('data', args.data_dir)
@@ -50,7 +61,7 @@ def main() -> None:
     val_folds = find_data_folds(data_path, 'val')
 
     if args.verbose:
-        print(f"Found {len(train_folds)} training folds and {len(val_folds)} validation folds")
+        print(f"Found {len(train_folds)} training folds and {len(val_folds)} validation folds.")
 
     # Process each corresponding pair of train and validation folds
     fold = 0
@@ -71,7 +82,7 @@ def main() -> None:
         if args.verbose:
             print("Model compiled")
 
-        run_model(model, optimizer, loss_fn, train_loader, val_loader, args, device, partial_path, fold)
+        run_model(model, optimizer, loss_fn, train_loader, val_loader, args, device, partial_path, fold, args.database)
 
 
 if __name__ == "__main__":
