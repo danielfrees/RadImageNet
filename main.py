@@ -40,6 +40,8 @@ def main() -> None:
     device = None
     if torch.cuda.is_available():
         device = torch.device('cuda')
+        torch.backends.cudnn.benchmark = True  # Enable cuDNN benchmark for optimal performance
+        torch.backends.cudnn.deterministic = False  # Set to False to allow for the best performance
     elif torch.backends.mps.is_available():
         device = torch.device('mps')
     else:

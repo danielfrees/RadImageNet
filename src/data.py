@@ -36,7 +36,7 @@ class RadDataset(Dataset):
         """
         image_path = os.path.join(self.partial_path, self.df.iloc[idx, 0])
         image = Image.open(image_path).convert('RGB')
-        label = 1 if self.df.iloc[idx, 1] in {'yes', 'malignant'} else 0
+        label = 1 if self.df.iloc[idx, 1] in ['yes', 'malignant'] else 0
 
         if self.transform:
             image = self.transform(image)
@@ -120,7 +120,7 @@ def create_dataloaders(train_df, val_df, batch_size: int, image_size: int, parti
     train_dataset = RadDataset(train_df, transform=train_transform, partial_path=partial_path)
     val_dataset = RadDataset(val_df, transform=val_transform, partial_path=partial_path)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers = 0)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers = 0)
 
     return train_loader, val_loader
