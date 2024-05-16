@@ -1,0 +1,5 @@
+Averaged Metrics Across Folds:
+train_loss    0.567931
+val_loss      0.549903
+train_auc     0.821412
+val_auc       0.864943
