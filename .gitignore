@@ -9,3 +9,4 @@ RadImageNet_pytorch/*
 *.h5
 *.pkl
 *.pth
+logs/*

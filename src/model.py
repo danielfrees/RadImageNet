@@ -115,9 +115,9 @@ def load_base_model(model_name: str, database: str, device: torch.device, args: 
         base_model = models.inception_v3(weights=weights, 
                                          transform_input = False, 
                                          init_weights = False,     # using pretrained weights!!
-                                         aux_logits = False)
+                                         aux_logits = weights is not None)  # needs to be set true for imagenet for some reason
         # Remove the auxiliary output layer to allow for smaller input sizes (75x75), otherwise it requires 299x299
-        # base_model.AuxLogits = None
+        base_model.AuxLogits = None
     elif model_name == 'ResNet50':
         weights = "IMAGENET1K_V1" if database == 'ImageNet' else None
         base_model = models.resnet50(weights=weights)
