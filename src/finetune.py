@@ -30,6 +30,8 @@ class FineTuneModel(nn.Module):
         # Replace the classifier layer of the base model, already adjusted for num_classes
         # Initialize the new fully connected layer
         self.fc = nn.Linear(base_model.fc.in_features, num_classes)
+        self.activation = nn.LeakyReLU(0.1)
+        self.bn = nn.BatchNorm1d(base_model.fc.in_features)  # Add BatchNorm1d before Dropout
         self._init_weights()
 
     def _init_weights(self):
@@ -54,5 +56,6 @@ class FineTuneModel(nn.Module):
         x = self.base_model(x)  # Pass input through the base model
         x = torch.flatten(x, 1)  # Flatten the output for the dropout layer
         x = self.dropout(x)  # Apply dropout
+        x = self.activation(x)
         x = self.fc(x)  # Pass through the new classifier
         return x
