@@ -52,15 +52,36 @@ class Backbone(nn.Module):
 class Classifier(nn.Module):
     def __init__(self, num_in_features, num_class):
         super(Classifier, self).__init__()
-        self.drop_out = nn.Dropout()
-        self.fc = nn.Linear(num_in_features, num_class)
-        nn.init.kaiming_normal_(self.fc.weight)
-        if self.fc.bias is not None:
-            nn.init.constant_(self.fc.bias, 0)
+        # Intermediate layer size, can be adjusted
+        intermediate_size = num_in_features // 2  
+        self.relu = nn.LeakyReLU(negative_slope=0.01)
+
+        # First fully connected layer
+        self.fc1 = nn.Linear(num_in_features, intermediate_size)
+        # Batch normalization for the first layer
+        self.bn1 = nn.BatchNorm1d(intermediate_size)
+        # Dropout layer
+        self.dropout = nn.Dropout(0.5)  # Adjust dropout rate as needed
+
+        # Second fully connected layer (output layer)
+        self.fc2 = nn.Linear(intermediate_size, num_class)
+
+        # Initialize weights using Kaiming He initialization, good practice for layers followed by ReLU
+        nn.init.kaiming_normal_(self.fc1.weight, nonlinearity='relu')
+        nn.init.kaiming_normal_(self.fc2.weight, nonlinearity='relu')
+
+        if self.fc1.bias is not None:
+            nn.init.constant_(self.fc1.bias, 0)
+        if self.fc2.bias is not None:
+            nn.init.constant_(self.fc2.bias, 0)
 
     def forward(self, x):
-        # x = self.drop_out(x)
-        x = self.fc(x)
+        # Apply first fully connected layer with ReLU activation and batch normalization
+        x = self.relu(self.bn1(self.fc1(x)))
+        # Apply dropout
+        x = self.dropout(x)
+        # Apply second fully connected layer (output layer)
+        x = self.fc2(x)
         return x
     
 def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module, optim.Optimizer, nn.CrossEntropyLoss]:
