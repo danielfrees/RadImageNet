@@ -17,7 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
 
-    
+# ============================ Backbone model holds pre-trained weights ============================
 class Backbone(nn.Module):
     """
     A PyTorch model class serves as the backbone of the pre-trained network by removing its classifier.
@@ -47,43 +47,117 @@ class Backbone(nn.Module):
             x = nn.functional.adaptive_avg_pool2d(x, (1, 1))
         x = torch.flatten(x, 1)
         return x
+# ============================ End Backbone Model ============================
 
-    
-class Classifier(nn.Module):
+
+
+# ============================ Define Classifier Models ============================
+class LinearClassifier(nn.Module):
     def __init__(self, num_in_features, num_class):
-        super(Classifier, self).__init__()
-        # Intermediate layer size, can be adjusted
-        intermediate_size = num_in_features // 2  
+
+        """ 
+        Initialize a linear classifier layer. 
+
+        Input: 
+            num_in_features (int): input feature size of the last 
+                (feature extraction) layer from the backbone         
+            num_class (int): number of classes to be predicted       
+        """
+        super(LinearClassifier, self).__init__()
+        self.fc1 = nn.Linear(num_in_features, num_class, bias = True)  
+        nn.init.kaiming_normal_(self.fc1.weight, nonlinearity='relu')
+        nn.init.constant_(self.fc1.bias, 0)  
+
+    def forward(self, x):
+        return self.fc1(x)
+    
+class NonLinearClassifier(nn.Module):
+    def __init__(self, num_in_features : int,
+                  num_class: int, 
+                  dropout_prob: float = 0.5, 
+                  fc_hidden_size_ratio: float = 0.5):
+        """ 
+        Initialize a nonlinear classifier layer. 
+
+        Input: 
+            num_in_features (int): input feature size of the last 
+                (feature extraction) layer from the backbone                
+            dropout_prob (float): probability for element to be zeroed in 
+                dropout layers
+            fc_hidden_size_ratio (float): ratio of FC intermediate layer relative
+                to features layer. e.g. 2-> 2 x features = intermediate size  
+        """
+        super(NonLinearClassifier, self).__init__()
+        # TODO: maybe play with intermediate sizes
+        fc_hidden_size = int(num_in_features * fc_hidden_size_ratio)
         self.relu = nn.LeakyReLU(negative_slope=0.01)
 
-        # First fully connected layer
-        self.fc1 = nn.Linear(num_in_features, intermediate_size)
-        # Batch normalization for the first layer
-        self.bn1 = nn.BatchNorm1d(intermediate_size)
-        # Dropout layer
-        self.dropout = nn.Dropout(0.5)  # Adjust dropout rate as needed
+        self.fc1 = nn.Linear(num_in_features, fc_hidden_size, bias = False)  # dont need bias before a batchnorm, will be cancelled effectively
+        self.bn1 = nn.BatchNorm1d(fc_hidden_size)
+        self.dropout = nn.Dropout(dropout_prob)  # Adjust dropout rate as needed
+        self.fc2 = nn.Linear(fc_hidden_size, num_class, bias = True)
 
-        # Second fully connected layer (output layer)
-        self.fc2 = nn.Linear(intermediate_size, num_class)
+        # Use Kaiming He initialization for better learning (ReLU follows fc1 and fc2)
+        nn.init.kaiming_normal_(self.fc1.weight, nonlinearity='relu')
+        # no bias to init fc1
+        nn.init.kaiming_normal_(self.fc2.weight, nonlinearity='relu')
+        nn.init.constant_(self.fc2.bias, 0)
 
-        # Initialize weights using Kaiming He initialization, good practice for layers followed by ReLU
+    def forward(self, x):
+        x = self.relu(self.bn1(self.fc1(x)))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+    
+class ConvClassifier(nn.Module):
+    def __init__(self, num_in_features: int, num_class: int, 
+                 num_filters: int = 4, kernel_size: int = 2, 
+                 dropout_prob: float = 0.5, fc_hidden_size_ratio: float = 0.5):
+        super(ConvClassifier, self).__init__()
+
+        self.relu = nn.LeakyReLU(negative_slope=0.01)
+
+        self.conv = nn.Conv1d(in_channels=1, out_channels=num_filters, kernel_size=kernel_size, bias=False)
+        self.bn_conv = nn.BatchNorm1d(num_filters)
+        self.dropout_conv = nn.Dropout(dropout_prob)
+        
+        self.flatten = nn.Flatten()
+
+        conv_output_size = num_in_features - kernel_size + 1
+        fc_input_size = num_filters * conv_output_size
+        fc_hidden_size = int(fc_input_size * fc_hidden_size_ratio)
+
+        self.fc1 = nn.Linear(fc_input_size, fc_hidden_size, bias=False)
+        self.bn_fc1 = nn.BatchNorm1d(fc_hidden_size)
+        self.dropout_fc1 = nn.Dropout(dropout_prob)
+        self.fc2 = nn.Linear(fc_hidden_size, num_class, bias=True)
+
+        nn.init.kaiming_normal_(self.conv.weight, nonlinearity='relu')
         nn.init.kaiming_normal_(self.fc1.weight, nonlinearity='relu')
         nn.init.kaiming_normal_(self.fc2.weight, nonlinearity='relu')
 
+        if self.conv.bias is not None:
+            nn.init.constant_(self.conv.bias, 0)
         if self.fc1.bias is not None:
             nn.init.constant_(self.fc1.bias, 0)
         if self.fc2.bias is not None:
             nn.init.constant_(self.fc2.bias, 0)
 
     def forward(self, x):
-        # Apply first fully connected layer with ReLU activation and batch normalization
-        x = self.relu(self.bn1(self.fc1(x)))
-        # Apply dropout
-        x = self.dropout(x)
-        # Apply second fully connected layer (output layer)
+        x = x.unsqueeze(1)
+        x = self.relu(self.bn_conv(self.conv(x)))
+        x = self.dropout_conv(x)
+        x = self.flatten(x)
+        x = self.relu(self.bn_fc1(self.fc1(x)))
+        x = self.dropout_fc1(x)
         x = self.fc2(x)
         return x
     
+# ============================ End Defining Classifiers ============================
+
+
+
+# ============================ Model Loading Helpers ============================
 def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module, optim.Optimizer, nn.CrossEntropyLoss]:
     """
     Prepares and compiles the model by loading a base model, modifying its layers, setting the device,
@@ -100,7 +174,7 @@ def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module
             - CrossEntropyLoss: The loss function to be used during training.
     """
     # Load the base model with modified classifier layer
-    model = load_base_model(args.model_name, args.database, device, args)
+    model = load_model(device, args)
 
     # Set up the optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay = 1e-5)
@@ -110,14 +184,15 @@ def get_compiled_model(args: Namespace, device: torch.device) -> Tuple[nn.Module
 
     return model, optimizer, loss
     
-def load_base_model(model_name: str, database: str, device: torch.device, args: Namespace) -> nn.Module:
+def load_model(device: torch.device, args: Namespace) -> nn.Module:
     """
     Loads a pre-trained model based on the specified model name and database, 
     and transfers it to the given device. It supports loading custom weights 
     for models trained with the RadImageNet dataset.
 
     Args:
-        model_name (str): Name of the model to load (e.g., 'IRV2', 'ResNet50', 'DenseNet121').
+        backbone_model_name (str): Name of the model to load (e.g., 'IRV2', 'ResNet50', 'DenseNet121').
+        clf (str): Type of classifier model to use (e.g. 'Linear', 'Nonlinear', 'Conv')
         database (str): Indicates the dataset used to pre-train the model ('ImageNet' or 'RadImageNet').
         device (torch.device): The device (e.g., CPU or GPU) to which the model should be transferred.
         args (Namespace): Command line arguments or other configuration that includes model_name, database, structure, and lr.
@@ -129,34 +204,46 @@ def load_base_model(model_name: str, database: str, device: torch.device, args: 
         Exception: If the weights for RadImageNet models do not exist at the specified path.
     """
     base_model = None
-    model_dir = f"./RadImageNet_pytorch/{model_name}.pt"
+    model_dir = f"./RadImageNet_pytorch/{args.backbone_model_name}.pt"
     
-    if model_name == 'InceptionV3':
-        weights = "IMAGENET1K_V1" if database == 'ImageNet' else None
+    if args.backbone_model_name == 'InceptionV3':
+        weights = "IMAGENET1K_V1" if args.database == 'ImageNet' else None
         base_model = models.inception_v3(weights=weights, 
                                          transform_input = False, 
                                          init_weights = False,     # using pretrained weights!!
                                          aux_logits = weights is not None)  # needs to be set true for imagenet for some reason
         # Remove the auxiliary output layer to allow for smaller input sizes (75x75), otherwise it requires 299x299
         base_model.AuxLogits = None
-    elif model_name == 'ResNet50':
-        weights = "IMAGENET1K_V1" if database == 'ImageNet' else None
+    elif args.backbone_model_name == 'ResNet50':
+        weights = "IMAGENET1K_V1" if args.database == 'ImageNet' else None
         base_model = models.resnet50(weights=weights)
-    elif model_name == 'DenseNet121':
-        weights = "IMAGENET1K_V1" if database == 'ImageNet' else None
+    elif args.backbone_model_name == 'DenseNet121':
+        weights = "IMAGENET1K_V1" if args.database == 'ImageNet' else None
         base_model = models.densenet121(weights=weights)
     # Determine the number of input features for the classifier
     num_in_features = list(base_model.children())[-1].in_features
-    backbone = Backbone(base_model, model_name)
+    backbone = Backbone(base_model, args.backbone_model_name)
 
     # Load custom RadImageNet weights if specified and the file exists
-    if database == 'RadImageNet' and os.path.exists(model_dir):
+    if args.database == 'RadImageNet' and os.path.exists(model_dir):
         backbone.load_state_dict(torch.load(model_dir, map_location=device))
-    elif database == 'RadImageNet':
-        raise Exception(f'RadImageNet model weights for {model_name} do not exist at specified path {model_dir}. Please ensure the file exists.')
+    elif args.database == 'RadImageNet':
+        raise Exception(f'RadImageNet model weights for {args.backbone_model_name} do not exist at specified path {model_dir}. Please ensure the file exists.')
     
     manage_layer_freezing(backbone, args.structure)
-    classifier = Classifier(num_in_features, 2)
+
+    # define number of output classes depending on task
+    if args.data_dir in ['acl', 'breast']:
+        NUM_CLASS = 2
+    if args.clf == "Linear":
+        classifier = LinearClassifier(num_in_features, NUM_CLASS)
+    elif args.clf == "NonLinear":
+        classifier = NonLinearClassifier(num_in_features, NUM_CLASS, 
+                                         args.dropout_prob, args.fc_hidden_size_ratio)
+    elif args.clf == "Conv":
+        classifier = ConvClassifier(num_in_features, NUM_CLASS, num_filters = args.num_filters)
+    else:
+        raise ValueError
 
     model = nn.Sequential(backbone, classifier)
     model = model.to(device)
@@ -209,6 +296,10 @@ def manage_layer_freezing(model: nn.Module, structure: str) -> None:
     else:
         raise ValueError("Invalid structure parameter. Use 'freezeall', 'unfreezeall', or 'unfreezetopN' where N is a number.")
 
+# ============================ End Model Loading Helpers ============================
+
+
+# ============================ Run Model Training ============================
 
 def run_model(
     model: nn.Module,
@@ -279,8 +370,6 @@ def run_model(
         
         all_labels = np.concatenate(all_labels)
         all_preds = np.concatenate(all_preds)
-        
-        # Apply softmax to logits to get probabilities
         all_probs = torch.softmax(torch.tensor(all_preds), dim=1).numpy()
         
         train_auc = roc_auc_score(all_labels, all_probs[:, 1])
@@ -312,8 +401,6 @@ def run_model(
         
         val_labels = np.concatenate(val_labels)
         val_preds = np.concatenate(val_preds)
-        
-        # Apply softmax to logits to get probabilities
         val_probs = torch.softmax(torch.tensor(val_preds), dim=1).numpy()
         
         val_auc = roc_auc_score(val_labels, val_probs[:, 1])
@@ -324,16 +411,26 @@ def run_model(
         writer.add_scalar('Loss/val', val_loss, epoch)
         writer.add_scalar('AUC/val', val_auc, epoch)
 
-        # Save the model checkpoint if it has the best validation loss
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            checkpoint_path = os.path.join(save_model_dir, f'best_{args.model_name}_{epoch+1}_fold_{fold}_structure_{args.structure}.pth')
-            torch.save(model.state_dict(), checkpoint_path)
+            checkpoint_path = os.path.join(
+                save_model_dir, 
+                f'best_model_bb_{args.backbone_model_name}_clf_{args.clf}_{epoch+1}_fold_{fold}_structure_{args.structure}_'
+                f'lr_{args.lr}_bs_{args.batch_size}_dp_{args.dropout_prob}_fsr_{args.fc_hidden_size_ratio}_'
+                f'nf_{args.num_filters}_ks_{args.kernel_size}.pth'
+            )
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'epoch': epoch,
+                'best_val_loss': best_val_loss,
+                'args': vars(args)  
+            }, checkpoint_path)
             if verbose:
                 print(f'Saved model with validation loss: {val_loss:.4f} at epoch {epoch+1}')
 
     # Save training and validation loss history to CSV
     history_df = pd.DataFrame(history)
-    history_df.to_csv(os.path.join(save_model_dir, f'training_history_{args.model_name}_{database}_fold_{fold}_structure_{args.structure}.csv'), index=False)
+    history_df.to_csv(os.path.join(save_model_dir, f'training_history_{args.backbone_model_name}_clf_{args.clf}_{database}_fold_{fold}_structure_{args.structure}.csv'), index=False)
 
     writer.close()
