@@ -34,7 +34,7 @@ def main() -> None:
     parser.add_argument('--fc_hidden_size_ratio', type=float, default=0.5, help='Ratio of hidden size to features for FC intermediate layers.')
     parser.add_argument('--num_filters', type = int, default = 4, help = "Number of Filters used in convolutional layers.")
     parser.add_argument('--kernel_size', type = int, default = 2, help = "Size of Kernel used in convolutional layers.")
-    parser.add_argument('--amp', action = 'store_true', help="Enable AMP for faster mixed-precision training.")
+    parser.add_argument('--amp', action = 'store_true', help="Enable AMP for faster mixed-precision training. Need CUDA + recommend batch size of 256+ to use throughput gains if running AMP.")
     parser.add_argument('--log_every', type=int, default = 100)
     parser.add_argument('--use_folds', action='store_true', default = False, 
                         help = 'Run separate models for different train and validation folds. Useful for matching original RadImageNet baselines, but messy.')
