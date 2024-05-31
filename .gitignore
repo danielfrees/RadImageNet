@@ -10,3 +10,4 @@ RadImageNet_pytorch/*
 *.pkl
 *.pth
 logs/*
+*.csv
