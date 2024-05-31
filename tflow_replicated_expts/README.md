@@ -1,15 +1,15 @@
 # RadImageNet
-Welcome to the official repository for RadImageNet. 
+Welcome to the official repository for RadImageNet.
 
-The RadImageNet database is an open-access medical imaging database. This study was designed to improve transfer learning performance on downstream medical imaging applications. The experiments were designed in four phases. The RadImageNet dataset are available by request at https://www.radimagenet.com/, and the dataset split csv can be found here https://drive.google.com/drive/folders/1FUir_Y_kbQZWih1TMVf9Sz8Pdk9NF2Ym?usp=sharing. 
+The RadImageNet database is an open-access medical imaging database. This study was designed to improve transfer learning performance on downstream medical imaging applications. The experiments were designed in four phases. The RadImageNet dataset are available by request at https://www.radimagenet.com/, and the dataset split csv can be found here https://drive.google.com/drive/folders/1FUir_Y_kbQZWih1TMVf9Sz8Pdk9NF2Ym?usp=sharing.
 
-The Tensorflow RadImageNet pretrained models are availble at https://drive.google.com/drive/folders/1Es7cK1hv7zNHJoUW0tI0e6nLFVYTqPqK?usp=sharing or https://drive.google.com/file/d/1UgYviv2K6QPM1SCexqqab5-yTgwoAFEc/view?usp=share_link. The PyTorch RadImageNet pretrained models are available at https://drive.google.com/file/d/1RHt2GnuOYlc_gcoTETtBDSW73mFyRAtR/view?usp=sharing. We will release pretrained Swin Transformer weights later. 
+The Tensorflow RadImageNet pretrained models are availble at https://drive.google.com/drive/folders/1Es7cK1hv7zNHJoUW0tI0e6nLFVYTqPqK?usp=sharing or https://drive.google.com/file/d/1UgYviv2K6QPM1SCexqqab5-yTgwoAFEc/view?usp=share_link. The PyTorch RadImageNet pretrained models are available at https://drive.google.com/file/d/1RHt2GnuOYlc_gcoTETtBDSW73mFyRAtR/view?usp=sharing. We will release pretrained Swin Transformer weights later.
 
 Note: if you don't receive a response to your inquiry (check your junk/spam folder first) you can directly email twdeyer@radimagenet.com or twdeyer@gmail.com.
 
 ![alt text](https://github.com/BMEII-AI/RadImageNet/blob/main/util/Slide1.JPG)
 
-The RadImageNet database includes 1.35 million annotated CT, MRI, and ultrasound images of musculoskeletal, neurologic, oncologic, gastrointestinal, endocrine, and pulmonary pathology. The RadImageNet database contains medical images of 3 modalities, 11 anatomies, and 165 pathologic labels. 
+The RadImageNet database includes 1.35 million annotated CT, MRI, and ultrasound images of musculoskeletal, neurologic, oncologic, gastrointestinal, endocrine, and pulmonary pathology. The RadImageNet database contains medical images of 3 modalities, 11 anatomies, and 165 pathologic labels.
 
 ![alt text](https://github.com/BMEII-AI/RadImageNet/blob/main/util/Slide2.JPG)
 
@@ -36,11 +36,11 @@ pages = {e210315},
 year = {0},
 doi = {10.1148/ryai.210315},
 
-URL = { 
+URL = {
         https://doi.org/10.1148/ryai.210315
-    
+
 },
-eprint = { 
+eprint = {
         https://doi.org/10.1148/ryai.210315
 }
 }
@@ -50,7 +50,7 @@ eprint = {
 
 
 
-## Pretained RadImageNet Models: 
+## Pretained RadImageNet Models:
 Our RadImageNet pretrained networks include ResNet50, DenseNet121, InceptionResNetV2, and InceptionV3. They are trained solely from RadImageNet medical images and can be used as the starting point on downstream applications using transfer learning. We evaluated RadImageNet pretrained models on 8 medical imaging applications and compared the results to ImageNet pretrained models by using publically available datasets, including thyroid nodule malignancy prediction on ultrasound (1), breast lesion classification on ultrasound (2), ACL and meniscus tear detection on MR (3); pneumonia detection on chest radiographs(4), SARS-CoV-2 detection and COVID-19 identification on chest CT (5,6); and hemorrhage detection on head CT (7). For each medical application, we simulated 24 scenarios to fine tune the models.  The four  CNN bottlenecks were performed with varied learning rates and different numbers of freezing layers. Unfreezing all layers was conducted with learning rates of 0.001 and 0.0001, while freezing all layers and unfreezing top 10 layers were trained with learning rates of 0.01 and 0.001. The average AUROC and standard deviation of these 24 settings were compared between RadImageNet and Imagenet pre-trained models.
 
 Comparions on small datasets (5-fold cross validation)
@@ -61,7 +61,7 @@ Comparions on large datasets
 
 
 
-The sample code for each application is listed upward. 
+The sample code for each application is listed upward.
 
 ## Seven public medical applications datasets are available at:
 

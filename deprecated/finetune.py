@@ -4,6 +4,7 @@ from argparse import Namespace
 import torch
 import torch.nn as nn
 
+
 class FineTuneModel(nn.Module):
     """
     A PyTorch model class that fine-tunes a pre-trained network by replacing its classifier
@@ -31,7 +32,9 @@ class FineTuneModel(nn.Module):
         # Initialize the new fully connected layer
         self.fc = nn.Linear(base_model.fc.in_features, num_classes)
         self.activation = nn.LeakyReLU(0.1)
-        self.bn = nn.BatchNorm1d(base_model.fc.in_features)  # Add BatchNorm1d before Dropout
+        self.bn = nn.BatchNorm1d(
+            base_model.fc.in_features
+        )  # Add BatchNorm1d before Dropout
         self._init_weights()
 
     def _init_weights(self):
@@ -39,7 +42,7 @@ class FineTuneModel(nn.Module):
         Initializes weights of the newly added fully connected layer using kaiming normal initialization
         for the weights and sets biases to zero if present.
         """
-        nn.init.kaiming_normal_(self.fc.weight, mode='fan_out', nonlinearity='relu')
+        nn.init.kaiming_normal_(self.fc.weight, mode="fan_out", nonlinearity="relu")
         if self.fc.bias is not None:
             nn.init.constant_(self.fc.bias, 0)
 
