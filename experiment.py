@@ -31,6 +31,13 @@ def main():
     various useful breakdowns of the ablations for reporting purposes. 
 
     """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--method', type=str, required=True, 
+                        help="Choose one of: runall, summarize, visualize. runall runs the grid search of experiments specified in main of experiment.py. summarize ")
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
+    args = parser.parse_args()
+
+
     DATA_DIRS = ['breast', 'acl']
     LEARNING_RATES = []
     
