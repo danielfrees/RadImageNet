@@ -294,6 +294,8 @@ def load_model(device: torch.device, args: Namespace) -> nn.Module:
         classifier = ConvClassifier(num_in_features, NUM_CLASS, num_filters = args.num_filters)
     elif args.clf == "ConvSkip":
         classifier = ConvClassifierWithSkip(num_in_features, NUM_CLASS, num_filters = args.num_filters)
+    elif args.clf == "ConvSkip":
+        classifier = ConvClassifierWithSkip(num_in_features, NUM_CLASS, num_filters = args.num_filters)
     else:
         raise ValueError
 
