@@ -153,6 +153,56 @@ class ConvClassifier(nn.Module):
         x = self.fc2(x)
         return x
     
+
+class ConvClassifierWithSkip(nn.Module):
+    def __init__(self, num_in_features: int, num_class: int, 
+                 num_filters: int = 4, kernel_size: int = 2, 
+                 dropout_prob: float = 0.5, fc_hidden_size_ratio: float = 0.5):
+        super(ConvClassifierWithSkip, self).__init__()
+
+        self.relu = nn.LeakyReLU(negative_slope=0.01)
+
+        self.conv = nn.Conv1d(in_channels=1, out_channels=num_filters, kernel_size=kernel_size, bias=False)
+        self.bn_conv = nn.BatchNorm1d(num_filters)
+        self.dropout_conv = nn.Dropout(dropout_prob)
+
+        self.flatten = nn.Flatten()
+
+        conv_output_size = num_in_features - kernel_size + 1
+        fc_input_size = num_filters * conv_output_size
+        fc_hidden_size = int(fc_input_size * fc_hidden_size_ratio)
+
+        self.fc1 = nn.Linear(fc_input_size, fc_hidden_size, bias=False)
+        self.bn_fc1 = nn.BatchNorm1d(fc_hidden_size)
+        self.dropout_fc1 = nn.Dropout(dropout_prob)
+        self.fc2 = nn.Linear(fc_hidden_size, num_class, bias=True)
+
+        # Skip connection
+        self.skip = nn.Sequential(
+            nn.Linear(num_in_features, fc_input_size, bias=False),
+            nn.BatchNorm1d(fc_input_size),
+            nn.ReLU()
+        )
+
+        nn.init.kaiming_normal_(self.conv.weight, nonlinearity='relu')
+        nn.init.kaiming_normal_(self.fc1.weight, nonlinearity='relu')
+        nn.init.kaiming_normal_(self.fc2.weight, nonlinearity='relu')
+
+    def forward(self, x):
+        x_initial = x.unsqueeze(1)  
+        x = self.relu(self.bn_conv(self.conv(x_initial)))
+        x = self.dropout_conv(x)
+        x = self.flatten(x)
+
+        # Apply skip connection
+        skip_out = self.skip(x_initial.squeeze(1))
+        x = x + skip_out  
+
+        x = self.relu(self.bn_fc1(self.fc1(x)))
+        x = self.dropout_fc1(x)
+        x = self.fc2(x)
+        return x
+    
 # ============================ End Defining Classifiers ============================
 
 
@@ -242,6 +292,8 @@ def load_model(device: torch.device, args: Namespace) -> nn.Module:
                                          args.dropout_prob, args.fc_hidden_size_ratio)
     elif args.clf == "Conv":
         classifier = ConvClassifier(num_in_features, NUM_CLASS, num_filters = args.num_filters)
+    elif args.clf == "ConvSkip":
+        classifier = ConvClassifierWithSkip(num_in_features, NUM_CLASS, num_filters = args.num_filters)
     else:
         raise ValueError
 
