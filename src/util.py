@@ -88,7 +88,7 @@ def validate_args(args: Namespace) -> None:
         raise ValueError(f"Pre-trained network '{args.model_name}' does not exist. Please choose from {valid_models}.")
     
     # Validate clf name 
-    valid_clfs = ["Linear", "NonLinear", "Conv"]
+    valid_clfs = ["Linear", "NonLinear", "Conv", "ConvSkip"]
     if args.clf not in valid_clfs:
         raise ValueError(f"Clf '{args.clf}' does not exist. Please choose from {valid_clfs}")
     
