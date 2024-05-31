@@ -5,6 +5,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.optim.lr_scheduler as lr_scheduler
 from torchvision import models
 from typing import Tuple
 from argparse import Namespace
@@ -411,6 +412,26 @@ def run_model(
     os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=log_dir)
 
+    # ====== Set Up Learning Rate Scheduling ======= 
+    scheduler = None
+    if args.lr_decay_method == 'beta':
+        gamma = args.lr_decay_beta
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: gamma ** epoch)
+    elif args.lr_decay_method == 'cosine':
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epoch, eta_min= args.lr / 5)   # cosine anneal down to args.lr / 3 over the number of epochs - no restarts
+
+
+    # ======= Set Up AMP (Automatic Mixed Precision) for Speedup ======
+    # ===== AMP =====
+    if args.amp:
+        print("\nTurning on Multi-Precision Training...\n")
+        if device.type == 'mps':
+            print("\nMPS Device Detected! Deactivating AMP (incompatible).\n")
+            args.amp = False
+    if args.amp:  # and device is not mps
+        gradscaler = torch.cuda.amp.GradScaler()
+
+
     for epoch in tqdm(range(num_epochs)):
         model.train()
         running_loss = 0.0
@@ -422,10 +443,21 @@ def run_model(
             images, labels = images.to(device), labels.to(device)
 
             optimizer.zero_grad()
-            outputs = model(images)
-            loss = loss_fn(outputs, labels)
-            loss.backward()
-            optimizer.step()
+
+            if args.amp:  # automatic mixed precision
+                with torch.cuda.amp.autocast():
+                    outputs = model(images)
+                    loss = loss_fn(outputs, labels)
+
+                gradscaler.scale(loss).backward()
+                gradscaler.step(optimizer)
+                gradscaler.update()
+
+            else: 
+                outputs = model(images)
+                loss = loss_fn(outputs, labels)
+                loss.backward()
+                optimizer.step()
 
             running_loss += loss.item() * images.size(0)
             
@@ -492,6 +524,15 @@ def run_model(
             }, checkpoint_path)
             if verbose:
                 print(f'Saved model with validation loss: {val_loss:.4f} at epoch {epoch+1}')
+
+        # ==== Update LR Scheduler and Track LR =====
+        lr = None
+        if scheduler: # update LR and grab LR from scheduler
+            scheduler.step()
+            lr = scheduler.get_last_lr()[0]
+        else: # need to grab LR from the state dict of the optimizer (we only have one param group)
+            lr = optimizer.param_groups[0]['lr']
+        writer.add_scalar('Learning Rate', lr, epoch)
 
     # Save training and validation loss history to CSV
     history_df = pd.DataFrame(history)

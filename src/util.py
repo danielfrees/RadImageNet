@@ -166,7 +166,7 @@ def create_dfs(data_path: str, train_fold: str, val_fold: str, data_dir: str) ->
         
     return train_df, val_df
 
-def validate_args(args: Namespace) -> None:
+def validate_args(args: Namespace, verbose: bool = False) -> None:
     """
     Validates the arguments provided to the script, ensuring that they refer to valid directories, databases,
     model structures, and model names.
@@ -193,15 +193,59 @@ def validate_args(args: Namespace) -> None:
 
     # Validate structure option
     if args.structure not in ['unfreezeall', 'freezeall'] and not re.match(r'unfreezetop\d+', args.structure):
-        raise Exception('Freeze any layers? Choose to unfreezeall/freezeall/unfreezetop{i} layers for the network.')
+        raise ValueError('Freeze any layers? Choose to unfreezeall/freezeall/unfreezetop{i} layers for the network.')
 
     # Validate model name
     valid_models = ['ResNet50', 'DenseNet121', 'InceptionV3']
     if args.backbone_model_name not in valid_models:
-        raise ValueError(f"Pre-trained network '{args.model_name}' does not exist. Please choose from {valid_models}.")
+        raise ValueError(f"Pre-trained network '{args.backbone_model_name}' does not exist. Please choose from {valid_models}.")
     
     # Validate clf name 
     valid_clfs = ["Linear", "NonLinear", "Conv", "ConvSkip"]
     if args.clf not in valid_clfs:
-        raise ValueError(f"Clf '{args.clf}' does not exist. Please choose from {valid_clfs}")
+        raise ValueError(f"Clf '{args.clf}' does not exist. Please choose from {valid_clfs}.")
+
+    # Validate batch size
+    if args.batch_size <= 0:
+        raise ValueError("Batch size must be a positive integer.")
+
+    # Validate image size
+    if args.image_size <= 0:
+        raise ValueError("Image size must be a positive integer.")
+
+    # Validate number of epochs
+    if args.epoch <= 0:
+        raise ValueError("Number of epochs must be a positive integer.")
+    
+    # Validate learning rate
+    if args.lr <= 0:
+        raise ValueError("Learning rate must be a positive float.")
+
+    # Validate learning rate decay method
+    valid_lr_decay_methods = [None, 'cosine', 'beta']
+    if args.lr_decay_method not in valid_lr_decay_methods:
+        raise ValueError(f"LR Decay Method '{args.lr_decay_method}' does not exist. Please choose from {valid_lr_decay_methods}.")
+
+    # Validate learning rate decay beta if method is 'beta'
+    if args.lr_decay_method == 'beta' and (args.lr_decay_beta <= 0 or args.lr_decay_beta >= 1):
+        raise ValueError("LR Decay Beta must be a float between 0 and 1 when using 'beta' decay method.")
+    
+    # Validate dropout probability
+    if not (0 <= args.dropout_prob <= 1):
+        raise ValueError("Dropout probability must be between 0 and 1.")
+    
+    # Validate fully connected hidden size ratio
+    if not (0 <= args.fc_hidden_size_ratio <= 1):
+        raise ValueError("Fully connected hidden size ratio must be between 0 and 1.")
+    
+    # Validate number of filters
+    if args.num_filters <= 0:
+        raise ValueError("Number of filters must be a positive integer.")
+    
+    # Validate kernel size
+    if args.kernel_size <= 0:
+        raise ValueError("Kernel size must be a positive integer.")
+
+    if verbose: 
+        print("All arguments are valid.")
     

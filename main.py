@@ -28,17 +28,20 @@ def main() -> None:
     parser.add_argument('--epoch', type=int, default=30, help='Number of epochs')
     parser.add_argument('--structure', type=str, default='unfreezeall', help='Structure: unfreezeall, freezeall, or unfreezetop10')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
+    parser.add_argument('--lr_decay_method', type = str, default= None, help = "LR Decay Method. Choose from None (default), 'cosine' for Cosine Annealing, 'beta' for multiplying LR by lr_decay_beta each epoch")
+    parser.add_argument('--lr_decay_beta', type=float, default=0.5, help="Beta for LR Decay. Multiply LR by lr_decay_beta each epoch if lr_decay_method = 'beta'")
     parser.add_argument('--dropout_prob', type=float, default=0.5, help='Prob. of dropping nodes in dropout layers')
     parser.add_argument('--fc_hidden_size_ratio', type=float, default=0.5, help='Ratio of hidden size to features for FC intermediate layers.')
     parser.add_argument('--num_filters', type = int, default = 4, help = "Number of Filters used in convolutional layers.")
     parser.add_argument('--kernel_size', type = int, default = 2, help = "Size of Kernel used in convolutional layers.")
+    parser.add_argument('--amp', action = 'store_true', help="Enable AMP for faster mixed-precision training.")
     parser.add_argument('--log_every', type=int, default = 100)
     parser.add_argument('--use_folds', action='store_true', default = False, 
                         help = 'Run separate models for different train and validation folds. Useful for matching original RadImageNet baselines, but messy.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
     args = parser.parse_args()
 
-    validate_args(args)
+    validate_args(args, verbose = True)
 
 
     # ====== Set Device, priority cuda > mps > cpu =======

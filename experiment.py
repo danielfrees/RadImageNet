@@ -11,6 +11,7 @@ Usage:
 
 import os 
 import argparse
+import itertools
 
 
 def main():
@@ -30,6 +31,11 @@ def main():
     various useful breakdowns of the ablations for reporting purposes. 
 
     """
+    DATA_DIRS = ['breast', 'acl']
+    LEARNING_RATES = []
+    
+
+
     pass
 
     
