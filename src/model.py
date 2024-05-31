@@ -424,7 +424,7 @@ def run_model(
     # ======= Set Up AMP (Automatic Mixed Precision) for Speedup ======
     # ===== AMP =====
     if args.amp:
-        print("\nTurning on Multi-Precision Training...\n")
+        print("\nTurning on Mixed-Precision Training...\n")
         if device.type == 'mps':
             print("\nMPS Device Detected! Deactivating AMP (incompatible).\n")
             args.amp = False
@@ -445,7 +445,7 @@ def run_model(
             optimizer.zero_grad()
 
             if args.amp:  # automatic mixed precision
-                with torch.cuda.amp.autocast():
+                with torch.autocast(device_type=device.type):
                     outputs = model(images)
                     loss = loss_fn(outputs, labels)
 
