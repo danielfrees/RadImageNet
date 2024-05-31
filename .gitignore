@@ -2,6 +2,7 @@
 RadImageNet_pytorch/*
 */models/*
 */__pycache__/*
+__pycache__/*
 *.DS_Store
 .ipynb_checkpoint
 *.keras

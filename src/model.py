@@ -468,7 +468,7 @@ def run_model(
         f"{task}_backbone_{args.backbone_model_name}_clf_{args.clf}_fold_{fold}_"
         f"structure_{args.structure}_lr_{args.lr}_batchsize_{args.batch_size}_"
         f"dropprob_{args.dropout_prob}_fcsizeratio_{args.fc_hidden_size_ratio}_"
-        f"numfilters_{args.num_filters}_kernelsize_{args.kernel_size}"
+        f"numfilters_{args.num_filters}_kernelsize_{args.kernel_size}_epochs_{args.epoch}"
     )
 
     # ======= Set Up Model Checkpointing ==========
@@ -599,6 +599,7 @@ def run_model(
         writer.add_scalar("Loss/val", val_loss, epoch)
         writer.add_scalar("AUC/val", val_auc, epoch)
 
+        # ====== Checkpoint New Best Model ======
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(

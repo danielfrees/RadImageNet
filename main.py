@@ -1,11 +1,17 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-### main.py
+"""main.py
+
+Wrapper for collecting args passed for experimental details, then iterating
+through data (or train and val folds, if --use_folds passed), setting up dataloaders,
+triggering training.
+
+Also sets up the device automatically with pref cuda > mps > cpu.
+"""
 
 import argparse
 import os
-import pandas as pd
 import torch
 from src.util import get_full_data, validate_args, find_data_folds, create_dfs
 from src.data import create_dataloaders
@@ -37,7 +43,7 @@ def main() -> None:
         "--clf",
         type=str,
         required=True,
-        help="Classifier type. Choose Linear, Nonlinear, or Conv.",
+        help="Classifier type. Choose Linear, Nonlinear, Conv, or ConvSkip",
     )
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--image_size", type=int, default=256, help="Image size")
@@ -53,7 +59,10 @@ def main() -> None:
         "--lr_decay_method",
         type=str,
         default=None,
-        help="LR Decay Method. Choose from None (default), 'cosine' for Cosine Annealing, 'beta' for multiplying LR by lr_decay_beta each epoch",
+        help=(
+            "LR Decay Method. Choose from None (default), 'cosine' for Cosine "
+            "Annealing, 'beta' for multiplying LR by lr_decay_beta each epoch"
+        ),
     )
     parser.add_argument(
         "--lr_decay_beta",
@@ -88,14 +97,20 @@ def main() -> None:
     parser.add_argument(
         "--amp",
         action="store_true",
-        help="Enable AMP for faster mixed-precision training. Need CUDA + recommend batch size of 256+ to use throughput gains if running AMP.",
+        help=(
+            "Enable AMP for faster mixed-precision training. Need CUDA + "
+            "recommend batch size of 256+ to use throughput gains if running AMP."
+        ),
     )
     parser.add_argument("--log_every", type=int, default=100)
     parser.add_argument(
         "--use_folds",
         action="store_true",
         default=False,
-        help="Run separate models for different train and validation folds. Useful for matching original RadImageNet baselines, but messy.",
+        help=(
+            "Run separate models for different train and validation folds. "
+            "Useful for matching original RadImageNet baselines, but messy."
+        ),
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     args = parser.parse_args()
