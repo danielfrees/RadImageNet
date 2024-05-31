@@ -233,7 +233,7 @@ def load_model(device: torch.device, args: Namespace) -> nn.Module:
     manage_layer_freezing(backbone, args.structure)
 
     # define number of output classes depending on task
-    if args.data_dir in ['acl', 'breast']:
+    if args.data_dir in ['acl', 'breast', 'hemorrhage', 'thyroid']:
         NUM_CLASS = 2
     if args.clf == "Linear":
         classifier = LinearClassifier(num_in_features, NUM_CLASS)
@@ -310,8 +310,8 @@ def run_model(
     args: Namespace,
     device: torch.device,
     partial_path: str,
-    fold: int,
-    database: str
+    database: str,
+    fold: str
 ) -> None:
     """
     Runs the training and validation process for a given model.
@@ -333,16 +333,28 @@ def run_model(
     num_epochs = args.epoch
     verbose = args.verbose
 
+    MODEL_PARAM_STR = (f'backbone_{args.backbone_model_name}_clf_{args.clf}_fold_{fold}_'
+                        f'structure_{args.structure}_lr_{args.lr}_batchsize_{args.batch_size}_'
+                        f'dropprob_{args.dropout_prob}_fcsizeratio_{args.fc_hidden_size_ratio}_'
+                        f'numfilters_{args.num_filters}_kernelsize_{args.kernel_size}')
+
+
+    # ======= Set Up Model Checkpointing ==========
     save_model_dir = os.path.join(partial_path, 'models')
+    checkpoint_path = os.path.join(
+        save_model_dir, 
+        f'best_model_{MODEL_PARAM_STR}.pth'
+    )
     os.makedirs(save_model_dir, exist_ok=True)
 
     best_val_loss = float('inf')
     history = {'train_loss': [], 'val_loss': [], 'train_auc': [], 'val_auc': []}
 
-    # log to tensorboard
+    # ====== Set Up Logging =======
     task = partial_path.split(os.sep)[1]
     current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
-    log_dir = os.path.join('logs', f'{task}_{current_datetime}_{database}_fold_{fold}')
+    log_dir = os.path.join('logs', f'log_{MODEL_PARAM_STR}_{current_datetime}')
+    os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=log_dir)
 
     for epoch in tqdm(range(num_epochs)):
@@ -350,6 +362,7 @@ def run_model(
         running_loss = 0.0
         all_labels = []
         all_preds = []
+        iter = 0
 
         for images, labels in train_loader:
             images, labels = images.to(device), labels.to(device)
@@ -364,6 +377,9 @@ def run_model(
             
             all_labels.append(labels.cpu().numpy())
             all_preds.append(outputs.detach().cpu().numpy())
+
+            if iter % args.log_every == 0:
+                pass # TODO: Update logging to be flexible across epochs with partial completeness if needed
 
         epoch_loss = running_loss / len(train_loader.dataset)
         history['train_loss'].append(epoch_loss)
@@ -413,12 +429,6 @@ def run_model(
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            checkpoint_path = os.path.join(
-                save_model_dir, 
-                f'best_model_bb_{args.backbone_model_name}_clf_{args.clf}_{epoch+1}_fold_{fold}_structure_{args.structure}_'
-                f'lr_{args.lr}_bs_{args.batch_size}_dp_{args.dropout_prob}_fsr_{args.fc_hidden_size_ratio}_'
-                f'nf_{args.num_filters}_ks_{args.kernel_size}.pth'
-            )
             torch.save({
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
@@ -431,6 +441,6 @@ def run_model(
 
     # Save training and validation loss history to CSV
     history_df = pd.DataFrame(history)
-    history_df.to_csv(os.path.join(save_model_dir, f'training_history_{args.backbone_model_name}_clf_{args.clf}_{database}_fold_{fold}_structure_{args.structure}.csv'), index=False)
+    history_df.to_csv(os.path.join(save_model_dir, f'training_history_{MODEL_PARAM_STR}.csv'), index=False)
 
     writer.close()
