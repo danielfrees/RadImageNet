@@ -196,12 +196,12 @@ def main() -> None:
     else:
         fold = "full"  # for logging filenames
 
-        train_df, val_df, _ = get_full_data(
+        train_df, val_df, test_df = get_full_data(
             data_path, force_reload_data=False, verbose=True
         )
 
-        train_loader, val_loader = create_dataloaders(
-            train_df, val_df, args.batch_size, args.image_size, partial_path
+        train_loader, val_loader, test_loader = create_dataloaders(
+            train_df, val_df, test_df, args.batch_size, args.image_size, partial_path
         )
 
         if args.verbose:
@@ -218,6 +218,7 @@ def main() -> None:
             loss_fn,
             train_loader,
             val_loader,
+            test_loader,
             args,
             device,
             partial_path,

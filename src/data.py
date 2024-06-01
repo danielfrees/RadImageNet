@@ -90,7 +90,7 @@ class Standardize:
 
 
 def create_dataloaders(
-    train_df, val_df, batch_size: int, image_size: int, partial_path: str
+    train_df, val_df, test_df, batch_size: int, image_size: int, partial_path: str
 ) -> tuple[DataLoader, DataLoader]:
     """
     Creates training and validation data loaders.
@@ -151,15 +151,30 @@ def create_dataloaders(
     )
     val_dataset = RadDataset(val_df, transform=val_transform, partial_path=partial_path)
 
+    test_dataset = RadDataset(
+        test_df, transform=val_transform, partial_path=partial_path
+    )
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=True,  # need to shuffle train data to avoid learning idxing
         num_workers=0,
         pin_memory=True,
     )
     val_loader = DataLoader(
-        val_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=True,
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=True,
     )
 
-    return train_loader, val_loader
+    return train_loader, val_loader, test_loader

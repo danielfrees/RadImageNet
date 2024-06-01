@@ -12,3 +12,5 @@ __pycache__/*
 *.pth
 logs/*
 *.csv
+*.png
+

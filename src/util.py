@@ -288,8 +288,8 @@ def validate_args(args: Namespace, verbose: bool = False) -> None:
         raise ValueError("Dropout probability must be between 0 and 1.")
 
     # Validate fully connected hidden size ratio
-    if not (0 <= args.fc_hidden_size_ratio <= 1):
-        raise ValueError("Fully connected hidden size ratio must be between 0 and 1.")
+    if not (0 <= args.fc_hidden_size_ratio):
+        raise ValueError("Fully connected hidden size ratio must be greater than 0.")
 
     # Validate number of filters
     if args.num_filters <= 0:

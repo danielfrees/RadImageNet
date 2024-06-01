@@ -15,7 +15,10 @@ import os
 import sys
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from main import main as run_experiment
+from tqdm import tqdm
+import seaborn as sns
 
 
 def summarize_results(results_dirs, verbose=False):
@@ -49,6 +52,11 @@ def summarize_results(results_dirs, verbose=False):
 
                 # Extract hyperparameters into individual columns
                 hyperparam_dict = parse_hyperparams(hyperparams)
+
+                # Add task from parent directory or filename
+                task = results_dir.split(os.sep)[-2]
+                hyperparam_dict["task"] = task
+
                 best_row = pd.concat([best_row, pd.Series(hyperparam_dict)])
 
                 summary_rows.append(best_row)
@@ -123,7 +131,24 @@ def create_visualizations(summary_df, verbose=False):
     if verbose:
         print("Creating visualizations...")
 
-    # Create visualizations for different hyperparameters
+    tasks = [None, "acl", "breast"]
+    task_names = ["overall", "acl", "breast"]
+    metrics = [
+        "val_auc",
+        "val_f1",
+        "val_accuracy",
+        "test_auc",
+        "test_f1",
+        "test_accuracy",
+    ]
+    metric_titles = {
+        "val_auc": "Validation AUC",
+        "val_f1": "Validation F1",
+        "val_accuracy": "Validation Accuracy",
+        "test_auc": "Test AUC",
+        "test_f1": "Test F1",
+        "test_accuracy": "Test Accuracy",
+    }
     hyperparameters = [
         "backbone",
         "clf",
@@ -137,19 +162,107 @@ def create_visualizations(summary_df, verbose=False):
         "epochs",
     ]
 
-    for hyperparam in hyperparameters:
-        if hyperparam in summary_df.columns:
-            plt.figure(figsize=(10, 6))
-            summary_df.boxplot(column="val_auc", by=hyperparam)
-            plt.title(f"Validation AUC by {hyperparam}")
-            plt.suptitle("")
-            plt.xlabel(hyperparam)
-            plt.ylabel("Validation AUC")
-            plt.xticks(rotation=45, ha="right")
-            plt.tight_layout()
-            plt.savefig(os.path.join("results", f"validation_auc_by_{hyperparam}.png"))
-            if verbose:
-                print(f"Visualization for {hyperparam} saved to results/")
+    total_tasks = len(tasks) * len(metrics) * len(hyperparameters)
+    with tqdm(total=total_tasks, desc="Creating Visualizations") as pbar:
+        for task, task_name in zip(tasks, task_names):
+            if task is None:
+                task_df = summary_df
+            else:
+                if "task" not in summary_df.columns:
+                    if verbose:
+                        print(
+                            f"No 'task' column in summary_df. Skipping {task_name} task."
+                        )
+                    pbar.update(len(metrics) * len(hyperparameters))
+                    continue
+                task_df = summary_df[summary_df["task"] == task]
+
+            if task_df.empty:
+                if verbose:
+                    print(f"No data for task: {task_name}")
+                pbar.update(len(metrics) * len(hyperparameters))
+                continue
+
+            for metric in metrics:
+                for hyperparam in hyperparameters:
+                    if hyperparam in task_df.columns and metric in task_df.columns:
+                        task_df_filtered = task_df.dropna(subset=[hyperparam, metric])
+                        if task_df_filtered.empty:
+                            pbar.update(1)
+                            continue
+                        plt.figure(figsize=(10, 6))
+                        sns.boxplot(
+                            x=hyperparam,
+                            y=metric,
+                            data=task_df_filtered,
+                            palette="Set3",
+                            hue=hyperparam,
+                            dodge=False,
+                            legend=False,
+                        )
+                        scatter = sns.stripplot(
+                            x=hyperparam,
+                            y=metric,
+                            data=task_df_filtered,
+                            jitter=True,
+                            dodge=True,
+                            marker="o",
+                            alpha=0.7,
+                            edgecolor="black",
+                            linewidth=0.5,
+                            hue=hyperparam,
+                            palette="Set3",
+                            legend=False,
+                        )
+                        plt.title(
+                            f"{task_name.capitalize()} {metric_titles[metric]} by {hyperparam}"
+                        )
+                        plt.xlabel(hyperparam)
+                        plt.ylabel(metric_titles[metric])
+                        plt.xticks(rotation=45, ha="right")
+                        plt.grid(False)
+                        plt.tight_layout()
+
+                        unique_values = task_df_filtered[hyperparam].unique()
+                        colors = sns.color_palette("Set3", len(unique_values))
+                        custom_handles = [
+                            Line2D(
+                                [0],
+                                [0],
+                                marker="o",
+                                color="w",
+                                label=label,
+                                markerfacecolor=color,
+                                markersize=10,
+                                markeredgecolor="black",
+                            )
+                            for label, color in zip(unique_values, colors)
+                        ]
+                        plt.legend(
+                            custom_handles,
+                            unique_values,
+                            title="Experiment Scatter Points",
+                        )
+
+                        output_dir = os.path.join(
+                            "results",
+                            task_name,
+                            "val" if "val" in metric else "test",
+                            metric.split("_")[1],
+                        )
+                        os.makedirs(output_dir, exist_ok=True)
+                        plt.savefig(
+                            os.path.join(
+                                output_dir, f"{task_name}_{metric}_by_{hyperparam}.png"
+                            )
+                        )
+                        plt.close()
+
+                        if verbose:
+                            print(
+                                f"Visualization for {hyperparam} in {task_name} {metric_titles[metric]} saved to {output_dir}/"
+                            )
+                    pbar.update(1)
 
 
 def main():
@@ -181,13 +294,13 @@ def main():
     LEARNING_RATES = [1e-4]
     BATCH_SIZES = [128]
     IMAGE_SIZES = [256]
-    EPOCHS = [30]
+    EPOCHS = [5]
     STRUCTURES = ["freezeall"]
     LR_DECAY_METHODS = ["beta", "cosine"]
     LR_DECAY_BETAS = [0.8]
     DROPOUT_PROBS = [0.5]
-    FC_HIDDEN_SIZE_RATIOS = [0.5]
-    NUM_FILTERS = [4]
+    FC_HIDDEN_SIZE_RATIOS = [0.5, 2]
+    NUM_FILTERS = [16]  # should really only vary this when CLF is Conv or ConvSkip
     KERNEL_SIZES = [2]
     AMPS = [True]
     USE_FOLDS = [False]
@@ -196,6 +309,7 @@ def main():
     if args.method == "runall":
         if args.verbose:
             print("Running all experiments...")
+
         for (
             data_dir,
             database,
@@ -215,31 +329,56 @@ def main():
             amp,
             use_folds,
             log_every,
-        ) in itertools.product(
-            DATA_DIRS,
-            DATABASES,
-            BACKBONE_MODELS,
-            CLFS,
-            LEARNING_RATES,
-            BATCH_SIZES,
-            IMAGE_SIZES,
-            EPOCHS,
-            STRUCTURES,
-            LR_DECAY_METHODS,
-            LR_DECAY_BETAS,
-            DROPOUT_PROBS,
-            FC_HIDDEN_SIZE_RATIOS,
-            NUM_FILTERS,
-            KERNEL_SIZES,
-            AMPS,
-            USE_FOLDS,
-            LOG_EVERY,
+        ) in tqdm(
+            itertools.product(
+                DATA_DIRS,
+                DATABASES,
+                BACKBONE_MODELS,
+                CLFS,
+                LEARNING_RATES,
+                BATCH_SIZES,
+                IMAGE_SIZES,
+                EPOCHS,
+                STRUCTURES,
+                LR_DECAY_METHODS,
+                LR_DECAY_BETAS,
+                DROPOUT_PROBS,
+                FC_HIDDEN_SIZE_RATIOS,
+                NUM_FILTERS,
+                KERNEL_SIZES,
+                AMPS,
+                USE_FOLDS,
+                LOG_EVERY,
+            ),
+            total=len(DATA_DIRS)
+            * len(DATABASES)
+            * len(BACKBONE_MODELS)
+            * len(CLFS)
+            * len(LEARNING_RATES)
+            * len(BATCH_SIZES)
+            * len(IMAGE_SIZES)
+            * len(EPOCHS)
+            * len(STRUCTURES)
+            * len(LR_DECAY_METHODS)
+            * len(LR_DECAY_BETAS)
+            * len(DROPOUT_PROBS)
+            * len(FC_HIDDEN_SIZE_RATIOS)
+            * len(NUM_FILTERS)
+            * len(KERNEL_SIZES)
+            * len(AMPS)
+            * len(USE_FOLDS)
+            * len(LOG_EVERY),
+            desc="Running experiments",
         ):
             if args.verbose:
+                print()
+                print(
+                    "===================================================================="
+                )
                 print(
                     f"Running experiment with {data_dir}, {database}, {backbone_model}, {clf}, {lr}, "
                     f"{batch_size}, {image_size}, {epoch}, {structure}, {lr_decay_method}, {lr_decay_beta}, "
-                    f"{dropout_prob}, {fc_hidden_size_ratio}, {numfilters}, {kernelsize}, {amp}, {use_folds}, "
+                    f"{dropout_prob}, {fc_hidden_size_ratio}, {num_filters}, {kernel_size}, {amp}, {use_folds}, "
                     f"{log_every}"
                 )
             # Set sys.argv for the run_experiment call

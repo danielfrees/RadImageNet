@@ -17,7 +17,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, f1_score, accuracy_score
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
@@ -437,33 +437,17 @@ def run_model(
     loss_fn: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
+    test_loader: DataLoader,
     args: Namespace,
     device: torch.device,
     partial_path: str,
     database: str,
     fold: str,
 ) -> None:
-    """
-    Runs the training and validation process for a given model.
-
-    Args:
-        model (nn.Module): The neural network model to train.
-        optimizer (optim.Optimizer): Optimizer for updating model weights.
-        loss_fn (nn.Module): Loss function to measure the model's performance.
-        train_loader (DataLoader): DataLoader for the training data.
-        val_loader (DataLoader): DataLoader for the validation data.
-        num_epochs (int): Total number of epochs to train the model.
-        device (torch.device): The device (CPU or GPU) to run the model on.
-        verbose (bool): Enable verbose output.
-        database (str): ImageNet or RadImageNet for the pretrained weights
-
-    This function performs training and validation across the specified number of epochs,
-    saving model checkpoints after each epoch and printing the loss values.
-    """
     num_epochs = args.epoch
     verbose = args.verbose
 
-    task = args.data_dir  # acl vs. breast vs. etc.
+    task = args.data_dir
     MODEL_PARAM_STR = (
         f"{task}_backbone_{args.backbone_model_name}_clf_{args.clf}_fold_{fold}_"
         f"structure_{args.structure}_lr_{args.lr}_batchsize_{args.batch_size}_"
@@ -471,7 +455,6 @@ def run_model(
         f"numfilters_{args.num_filters}_kernelsize_{args.kernel_size}_epochs_{args.epoch}"
     )
 
-    # ======= Set Up Model Checkpointing ==========
     save_model_dir = os.path.join(partial_path, "models")
     checkpoint_path = os.path.join(save_model_dir, f"best_model_{MODEL_PARAM_STR}.pth")
     os.makedirs(save_model_dir, exist_ok=True)
@@ -479,13 +462,11 @@ def run_model(
     best_val_loss = float("inf")
     history = {"train_loss": [], "val_loss": [], "train_auc": [], "val_auc": []}
 
-    # ====== Set Up Logging =======
     current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
     log_dir = os.path.join("logs", f"log_{MODEL_PARAM_STR}_{current_datetime}")
     os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=log_dir)
 
-    # ====== Set Up Learning Rate Scheduling =======
     scheduler = None
     if args.lr_decay_method == "beta":
         gamma = args.lr_decay_beta
@@ -495,16 +476,14 @@ def run_model(
     elif args.lr_decay_method == "cosine":
         scheduler = lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=args.epoch, eta_min=args.lr / 5
-        )  # cosine anneal down to args.lr / 3 over the number of epochs - no restarts
+        )
 
-    # ======= Set Up AMP (Automatic Mixed Precision) for Speedup ======
-    # ===== AMP =====
     if args.amp:
         print("\nTurning on Mixed-Precision Training...\n")
         if device.type == "mps":
             print("\nMPS Device Detected! Deactivating AMP (incompatible).\n")
             args.amp = False
-    if args.amp:  # and device is not mps
+    if args.amp:
         gradscaler = torch.cuda.amp.GradScaler()
 
     for epoch in tqdm(range(num_epochs)):
@@ -519,7 +498,7 @@ def run_model(
 
             optimizer.zero_grad()
 
-            if args.amp:  # automatic mixed precision
+            if args.amp:
                 with torch.autocast(device_type=device.type):
                     outputs = model(images)
                     loss = loss_fn(outputs, labels)
@@ -540,8 +519,10 @@ def run_model(
             all_preds.append(outputs.detach().cpu().numpy())
 
             if iter % args.log_every == 0:
-                pass  # TODO: Update logging to be flexible across epochs with
-                # partial completeness if needed
+                writer.add_scalar(
+                    "Loss/train_iter", loss.item(), epoch * len(train_loader) + iter
+                )
+            iter += 1
 
         epoch_loss = running_loss / len(train_loader.dataset)
         history["train_loss"].append(epoch_loss)
@@ -553,17 +534,23 @@ def run_model(
         train_auc = roc_auc_score(all_labels, all_probs[:, 1])
         history["train_auc"].append(train_auc)
 
+        train_f1 = f1_score(all_labels, np.argmax(all_probs, axis=1))
+        train_accuracy = accuracy_score(all_labels, np.argmax(all_probs, axis=1))
+
         if verbose:
             print(
                 (
-                    f"Epoch {epoch+1}/{num_epochs}, Training Loss: {epoch_loss:.4f}, "
-                    f"Training AUC: {train_auc:.4f}"
+                    f"Epoch {epoch+1}/{num_epochs}, Training Loss: {epoch_loss:.4f}, "(
+                        f"Training AUC: {train_auc:.4f}, Training F1: {train_f1:.4f}, "
+                        f"Training Accuracy: {train_accuracy:.4f}"
+                    )
                 )
             )
         writer.add_scalar("Loss/train", epoch_loss, epoch)
         writer.add_scalar("AUC/train", train_auc, epoch)
+        writer.add_scalar("F1/train", train_f1, epoch)
+        writer.add_scalar("Accuracy/train", train_accuracy, epoch)
 
-        # Perform validation
         model.eval()
         val_running_loss = 0.0
         val_labels = []
@@ -589,19 +576,25 @@ def run_model(
         val_auc = roc_auc_score(val_labels, val_probs[:, 1])
         history["val_auc"].append(val_auc)
 
+        val_f1 = f1_score(val_labels, np.argmax(val_probs, axis=1))
+        val_accuracy = accuracy_score(val_labels, np.argmax(val_probs, axis=1))
+
         if verbose:
             print(
                 (
-                    f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {val_loss:.4f}, "
-                    f"Validation AUC: {val_auc:.4f}"
+                    f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {val_loss:.4f}, "(
+                        f"Validation AUC: {val_auc:.4f}, Validation F1: {val_f1:.4f}, "
+                        f"Validation Accuracy: {val_accuracy:.4f}"
+                    )
                 )
             )
         writer.add_scalar("Loss/val", val_loss, epoch)
         writer.add_scalar("AUC/val", val_auc, epoch)
+        writer.add_scalar("F1/val", val_f1, epoch)
+        writer.add_scalar("Accuracy/val", val_accuracy, epoch)
 
-        # ====== Checkpoint New Best Model ======
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        if val_auc > best_val_loss:
+            best_val_loss = val_auc
             torch.save(
                 {
                     "model_state_dict": model.state_dict(),
@@ -614,20 +607,56 @@ def run_model(
             )
             if verbose:
                 print(
-                    f"Saved model with validation loss: {val_loss:.4f} at epoch {epoch+1}"
+                    f"Saved model with validation AUC: {val_auc:.4f} at epoch {epoch+1}"
                 )
 
-        # ==== Update LR Scheduler and Track LR =====
         lr = None
-        if scheduler:  # update LR and grab LR from scheduler
+        if scheduler:
             scheduler.step()
             lr = scheduler.get_last_lr()[0]
-        else:  # need to grab LR from the state dict of the optimizer (we only
-            # have one param group)
+        else:
             lr = optimizer.param_groups[0]["lr"]
         writer.add_scalar("Learning Rate", lr, epoch)
 
-    # Save training and validation loss history to CSV
+    checkpoint = torch.load(checkpoint_path)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model.eval()
+    test_running_loss = 0.0
+    test_labels = []
+    test_preds = []
+
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            loss = loss_fn(outputs, labels)
+            test_running_loss += loss.item() * images.size(0)
+
+            test_labels.append(labels.cpu().numpy())
+            test_preds.append(outputs.cpu().numpy())
+
+    test_loss = test_running_loss / len(test_loader.dataset)
+    test_labels = np.concatenate(test_labels)
+    test_preds = np.concatenate(test_preds)
+    test_probs = torch.softmax(torch.tensor(test_preds), dim=1).numpy()
+
+    test_auc = roc_auc_score(test_labels, test_probs[:, 1])
+    test_f1 = f1_score(test_labels, np.argmax(test_probs, axis=1))
+    test_accuracy = accuracy_score(test_labels, np.argmax(test_probs, axis=1))
+
+    history["test_loss"] = test_loss
+    history["test_auc"] = test_auc
+    history["test_f1"] = test_f1
+    history["test_accuracy"] = test_accuracy
+
+    if verbose:
+        print(
+            (
+                f"Test Loss: {test_loss:.4f}, Test AUC: {test_auc:.4f}, "
+                f"Test F1: {test_f1:.4f}, Test Accuracy: {test_accuracy:.4f}"
+            )
+        )
+
     history_df = pd.DataFrame(history)
     history_df.to_csv(
         os.path.join(save_model_dir, f"training_history_{MODEL_PARAM_STR}.csv"),
