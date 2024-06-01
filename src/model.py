@@ -23,6 +23,19 @@ from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
 
+# ===================== FullModel combines BackBone and Clf ==========================
+class FullModel(nn.Module):
+    def __init__(self, backbone, classifier):
+        super(FullModel, self).__init__()
+        self.backbone = backbone
+        self.classifier = classifier
+
+    def forward(self, x):
+        x = self.backbone(x)
+        x = self.classifier(x)
+        return x
+
+
 # ====================== Backbone model holds pre-trained weights =======================
 class Backbone(nn.Module):
     """
@@ -358,7 +371,7 @@ def load_model(device: torch.device, args: Namespace) -> nn.Module:
     else:
         raise ValueError
 
-    model = nn.Sequential(backbone, classifier)
+    model = FullModel(backbone, classifier)
     model = model.to(device)
 
     return model
