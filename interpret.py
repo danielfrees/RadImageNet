@@ -5,6 +5,12 @@ See: https://github.com/jacobgil/pytorch-grad-cam
 and: https://arxiv.org/abs/1610.02391
 
 for the inspiration.
+
+Example Usage:
+>>> python interpret.py --data_dir acl --database RadImageNet --backbone_model_name
+    DenseNet121 --clf Conv --fold full --structure freezeall --lr 0.0001
+    --batch_size 128 --dropout_prob 0.5 --fc_hidden_size_ratio 0.5
+    --num_filters 16 --kernel_size 2 --epoch 5 --image_index 0
 """
 
 import torch
