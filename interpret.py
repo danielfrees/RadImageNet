@@ -60,45 +60,70 @@ def visualize_image_with_gradcam(image_index: int, args, device):
 
     model = load_model(device, args)
     print("======= Model Loaded ======")
-    for name, layer in model.named_children():
-        print(f"{name}: {layer}")
+    # for name, layer in model.named_children():
+    #     print(f"{name}: {layer}")
     print("===========================")
     model.load_state_dict(model_state_dict)
+    model.eval()  # Set model to evaluation mode
+
+    # !!! enable gradients. Essential to re-enable gradient flow when
+    # transfer learning on a frozen backbone
+    for param in model.parameters():
+        param.requires_grad = True
 
     image_files = sorted(os.listdir(data_path))
     image_path = os.path.join(data_path, image_files[image_index])
     input_tensor = load_image(image_path, device, args)
+    input_tensor.requires_grad = True
 
-    # ===== set target layer and perform grad-CAM for the positive class ======
+    # Set target layers for Grad-CAM
+    target_layers = []
 
-    # These are the suggested Grad-CAM target layers for these two architectures
-    # based on: https://github.com/jacobgil/pytorch-grad-cam
-
-    # use the feature extraction layer, not the classifier
-    # classifier just affects the gradients for the particular positive class
-    # through this feature layer. TODO: I want to better understand the math
     if args.backbone_model_name.startswith("DenseNet"):
-        backbone = model[0]
-        target_layers = [
-            *list(backbone.children())[-1]
-        ]  # model is a Sequential with DenseNet as the first part
+        target_layers += [model.backbone.backbone[-1]]  # Last layer of DenseNet
     elif args.backbone_model_name.startswith("ResNet"):
-        backbone = model[0]
-        target_layers = [
-            *list(backbone.children())[-1]
-        ]  # model is a Sequential with ResNet as the first part
+        # Last few layers of ResNet
+        resnet_layers = list(model.backbone.backbone.children())
+        target_layers += [
+            resnet_layers[-3],
+            resnet_layers[-2],
+        ]  # avg. a few of the late resnet !convolutional! layers (the last layer is useless avg pool)
     else:
         raise ValueError("Unsupported model backbone")
+
+    # Add a layer from the classifier (if it has more than one layer)
+    classifier_layers = list(model.classifier.children())
+    if len(classifier_layers) > 1:
+        target_layers += [classifier_layers[-1]]
 
     positive_class = "malignant" if args.data_dir == "breast" else "yes"
     class_idx = 1  # Assuming positive class is the second class
 
+    # fwd pass and backward pass to get the outputs and calculate gradients for Grad-CAM
+    # !!! Don't be dumb and not compute gradients like me
+    output = model(input_tensor)
+    loss = nn.CrossEntropyLoss()(output, torch.tensor([class_idx]).to(device))
+    model.zero_grad()
+    loss.backward()
+
+    # run the grad-CAM algorithm
     cam = GradCAM(model=model, target_layers=target_layers)
     targets = [ClassifierOutputTarget(class_idx)]
     grayscale_cam = cam(input_tensor=input_tensor, targets=targets)[0, :]
 
-    # ===== visualize the grad CAM results ======
+    if not np.any(grayscale_cam):
+        print("Warning: Grayscale CAM is all zeros. Check the model and target layers.")
+    """ debugging: visualize the grayscale cam
 
+    print("Grayscale CAM:")
+    plt.figure(figsize=(10, 10))
+    plt.imshow(grayscale_cam, cmap='gray')
+    plt.title(f"Grayscale CAM for {positive_class} on {args.backbone_model_name}")
+    plt.axis('off')
+    plt.show()
+    """
+
+    # visualize grad-CAM heatmap overlayed on the original image
     rgb_img = (
         np.array(
             Image.open(image_path)
@@ -109,10 +134,13 @@ def visualize_image_with_gradcam(image_index: int, args, device):
     )
     visualization = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
 
-    plt.figure(figsize=(10, 10))
-    plt.imshow(visualization)
-    plt.title(f"Grad-CAM for {positive_class} on {args.backbone_model_name}")
-    plt.axis("off")
+    fig, axes = plt.subplots(1, 2, figsize=(15, 10))
+    axes[0].imshow(rgb_img)
+    axes[0].set_title("Original Image")
+    axes[0].axis("off")
+    axes[1].imshow(visualization)
+    axes[1].set_title(f"Grad-CAM for {positive_class} on {args.backbone_model_name}")
+    axes[1].axis("off")
     plt.show()
 
 

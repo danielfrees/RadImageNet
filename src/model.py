@@ -472,7 +472,7 @@ def run_model(
     checkpoint_path = os.path.join(save_model_dir, f"best_model_{MODEL_PARAM_STR}.pth")
     os.makedirs(save_model_dir, exist_ok=True)
 
-    best_val_loss = float("inf")
+    best_val_auc = float("-inf")
     history = {"train_loss": [], "val_loss": [], "train_auc": [], "val_auc": []}
 
     current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -553,10 +553,9 @@ def run_model(
         if verbose:
             print(
                 (
-                    f"Epoch {epoch+1}/{num_epochs}, Training Loss: {epoch_loss:.4f}, "(
-                        f"Training AUC: {train_auc:.4f}, Training F1: {train_f1:.4f}, "
-                        f"Training Accuracy: {train_accuracy:.4f}"
-                    )
+                    f"Epoch {epoch+1}/{num_epochs}, Training Loss: {epoch_loss:.4f}, "
+                    f"Training AUC: {train_auc:.4f}, Training F1: {train_f1:.4f}, "
+                    f"Training Accuracy: {train_accuracy:.4f}"
                 )
             )
         writer.add_scalar("Loss/train", epoch_loss, epoch)
@@ -595,10 +594,9 @@ def run_model(
         if verbose:
             print(
                 (
-                    f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {val_loss:.4f}, "(
-                        f"Validation AUC: {val_auc:.4f}, Validation F1: {val_f1:.4f}, "
-                        f"Validation Accuracy: {val_accuracy:.4f}"
-                    )
+                    f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {val_loss:.4f}, "
+                    f"Validation AUC: {val_auc:.4f}, Validation F1: {val_f1:.4f}, "
+                    f"Validation Accuracy: {val_accuracy:.4f}"
                 )
             )
         writer.add_scalar("Loss/val", val_loss, epoch)
@@ -606,14 +604,14 @@ def run_model(
         writer.add_scalar("F1/val", val_f1, epoch)
         writer.add_scalar("Accuracy/val", val_accuracy, epoch)
 
-        if val_auc > best_val_loss:
-            best_val_loss = val_auc
+        if val_auc > best_val_auc:
+            best_val_auc = val_auc
             torch.save(
                 {
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "epoch": epoch,
-                    "best_val_loss": best_val_loss,
+                    "best_val_auc": best_val_auc,
                     "args": vars(args),
                 },
                 checkpoint_path,
