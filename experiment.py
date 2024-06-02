@@ -115,6 +115,27 @@ def parse_hyperparams(hyperparams_str):
         elif params[i] == "epochs":
             hyperparams["epochs"] = params[i + 1]
             i += 2
+        elif params[i] == "imagesize":
+            hyperparams["imagesize"] = params[i + 1]
+            i += 2
+        elif params[i] == "lrdecay":
+            hyperparams["lrdecay"] = params[i + 1]
+            i += 2
+        elif params[i] == "lrbeta":
+            hyperparams["lrbeta"] = params[i + 1]
+            i += 2
+        elif params[i] == "amp":
+            hyperparams["amp"] = params[i + 1]
+            i += 2
+        elif params[i] == "logevery":
+            hyperparams["logevery"] = params[i + 1]
+            i += 2
+        elif params[i] == "usefolds":
+            hyperparams["usefolds"] = params[i + 1]
+            i += 2
+        elif params[i] == "verbose":
+            hyperparams["verbose"] = params[i + 1]
+            i += 2
         else:
             i += 1
     return hyperparams
@@ -291,16 +312,16 @@ def main():
     DATABASES = ["ImageNet", "RadImageNet"]
     BACKBONE_MODELS = ["ResNet50", "DenseNet121"]
     CLFS = ["Linear", "NonLinear", "Conv", "ConvSkip"]
-    LEARNING_RATES = [1e-4]
+    LEARNING_RATES = [float(1e-4)]
     BATCH_SIZES = [64, 128]
     IMAGE_SIZES = [256]
     EPOCHS = [5]
     STRUCTURES = ["freezeall"]
     LR_DECAY_METHODS = ["beta", "cosine"]
-    LR_DECAY_BETAS = [0.8]
+    LR_DECAY_BETAS = [0.5]
     DROPOUT_PROBS = [0.5]
-    FC_HIDDEN_SIZE_RATIOS = [0.5, 1]
-    NUM_FILTERS = [4, 16]  # should really only vary this when CLF is Conv or ConvSkip
+    FC_HIDDEN_SIZE_RATIOS = [0.5, 1.0]
+    NUM_FILTERS = [4, 16]
     KERNEL_SIZES = [2]
     AMPS = [True]
     USE_FOLDS = [False]
@@ -370,6 +391,27 @@ def main():
             * len(LOG_EVERY),
             desc="Running experiments",
         ):
+            if clf not in ["Conv", "ConvSkip"]:
+                num_filters = None
+                num_filters_str = 4  # default val in main
+                kernel_size = None
+                kernel_size_str = 2  # default val in main
+
+            MODEL_PARAM_STR = (
+                f"{data_dir}_backbone_{backbone_model}_clf_{clf}_fold_full_"
+                f"structure_{structure}_lr_{lr}_batchsize_{batch_size}_"
+                f"dropprob_{dropout_prob}_fcsizeratio_{fc_hidden_size_ratio}_"
+                f"numfilters_{num_filters_str}_kernelsize_{kernel_size_str}_epochs_{epoch}_"
+                f"imagesize_{image_size}_lrdecay_{lr_decay_method}_lrbeta_{lr_decay_beta}"
+            )
+
+            history_file = f"training_history_{MODEL_PARAM_STR}.csv"
+            history_path = os.path.join("data", data_dir, "models", history_file)
+
+            if os.path.exists(history_path):
+                print(f"Experiment already completed: {history_file}")
+                continue
+
             if args.verbose:
                 print()
                 print(
@@ -381,6 +423,9 @@ def main():
                     f"{dropout_prob}, {fc_hidden_size_ratio}, {num_filters}, {kernel_size}, {amp}, {use_folds}, "
                     f"{log_every}"
                 )
+                print()
+                print(history_path)
+                print()
             # Set sys.argv for the run_experiment call
             sys.argv = (
                 [
@@ -411,13 +456,19 @@ def main():
                     str(dropout_prob),
                     "--fc_hidden_size_ratio",
                     str(fc_hidden_size_ratio),
-                    "--num_filters",
-                    str(num_filters),
-                    "--kernel_size",
-                    str(kernel_size),
                     "--log_every",
                     str(log_every),
                 ]
+                + (
+                    ["--num_filters", str(num_filters)]
+                    if num_filters is not None
+                    else []
+                )
+                + (
+                    ["--kernel_size", str(kernel_size)]
+                    if kernel_size is not None
+                    else []
+                )
                 + (["--amp"] if amp else [])
                 + (["--use_folds"] if use_folds else [])
                 + (["--verbose"] if args.verbose else [])

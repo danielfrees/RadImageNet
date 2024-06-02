@@ -43,7 +43,7 @@ def main() -> None:
         "--clf",
         type=str,
         required=True,
-        help="Classifier type. Choose Linear, Nonlinear, Conv, or ConvSkip",
+        help="Classifier type. Choose Linear, Nonlinear, Conv, or ConvSkip.",
     )
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--image_size", type=int, default=256, help="Image size")

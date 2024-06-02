@@ -13,6 +13,9 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 from torchvision import models
+
+# from torchvision.models.vision_transformer import VisionTransformer
+# from torchvision.models import vit_b_16
 from typing import Tuple
 import numpy as np
 import pandas as pd
@@ -240,7 +243,6 @@ class ConvClassifierWithSkip(nn.Module):
         x = self.dropout_conv(x)
         x = self.flatten(x)
 
-        # Apply skip connection
         skip_out = self.skip(x_initial.squeeze(1))
         x = x + skip_out
 
@@ -249,6 +251,65 @@ class ConvClassifierWithSkip(nn.Module):
         x = self.fc2(x)
         return x
 
+
+"""Deprecated
+
+class ViTClassifierWithSkip(nn.Module):
+    def __init__(
+        self,
+        num_in_features: int,
+        num_classes: int,
+        dropout_prob: float = 0.5,
+        fc_hidden_size_ratio: float = 0.5,
+    ):
+        super(ViTClassifierWithSkip, self).__init__()
+
+        self.image_size = int(num_in_features ** 0.5)
+        patch_size = 16  # Default patch size for vit_b_16
+
+        self.vit = vit_b_16(weights='IMAGENET1K_V1')
+
+        vit_output_size = self.vit.heads.head.in_features
+
+        fc_hidden_size = int(vit_output_size * fc_hidden_size_ratio)
+
+        self.fc1 = nn.Linear(vit_output_size, fc_hidden_size, bias=False)
+        self.bn_fc1 = nn.BatchNorm1d(fc_hidden_size)
+        self.dropout_fc1 = nn.Dropout(dropout_prob)
+        self.fc2 = nn.Linear(fc_hidden_size, num_classes, bias=True)
+
+        self.skip = nn.Sequential(
+            nn.Linear(num_in_features, vit_output_size, bias=False),
+            nn.BatchNorm1d(vit_output_size),
+            nn.ReLU(),
+        )
+
+        nn.init.kaiming_normal_(self.fc1.weight, nonlinearity="relu")
+        nn.init.kaiming_normal_(self.fc2.weight, nonlinearity="relu")
+
+        self.vit.heads.head = nn.Identity()
+
+    def forward(self, x):
+        x_initial = x
+
+        # Calculate the new dimensions based on the image size and patch size
+        num_patches = (self.image_size // 16) ** 2
+        if num_patches * 768 != x_initial.size(1):  # 768 is the feature dimension for vit_b_16
+            raise ValueError("Input feature size does not match expected size for Vision Transformer.")
+
+        x = x.view(x.size(0), 3, self.image_size, self.image_size)
+
+        x = self.vit(x)
+
+        skip_out = self.skip(x_initial)
+        x = x + skip_out
+
+        x = self.fc1(x)
+        x = self.bn_fc1(x)
+        x = self.dropout_fc1(x)
+        x = self.fc2(x)
+        return x
+"""
 
 # ============================ End Defining Classifiers ============================
 
@@ -368,6 +429,9 @@ def load_model(device: torch.device, args: Namespace) -> nn.Module:
         classifier = ConvClassifierWithSkip(
             num_in_features, NUM_CLASS, num_filters=args.num_filters
         )
+    # elif args.clf == "ViT":
+    #     classifier = ViTClassifierWithSkip(num_in_features,
+    #                                      NUM_CLASS)
     else:
         raise ValueError
 
@@ -460,12 +524,12 @@ def run_model(
     num_epochs = args.epoch
     verbose = args.verbose
 
-    task = args.data_dir
     MODEL_PARAM_STR = (
-        f"{task}_backbone_{args.backbone_model_name}_clf_{args.clf}_fold_{fold}_"
+        f"{args.data_dir}_backbone_{args.backbone_model_name}_clf_{args.clf}_fold_{fold}_"
         f"structure_{args.structure}_lr_{args.lr}_batchsize_{args.batch_size}_"
         f"dropprob_{args.dropout_prob}_fcsizeratio_{args.fc_hidden_size_ratio}_"
-        f"numfilters_{args.num_filters}_kernelsize_{args.kernel_size}_epochs_{args.epoch}"
+        f"numfilters_{args.num_filters}_kernelsize_{args.kernel_size}_epochs_{args.epoch}_"
+        f"imagesize_{args.image_size}_lrdecay_{args.lr_decay_method}_lrbeta_{args.lr_decay_beta}"
     )
 
     save_model_dir = os.path.join(partial_path, "models")
@@ -473,9 +537,18 @@ def run_model(
     os.makedirs(save_model_dir, exist_ok=True)
 
     best_val_auc = float("-inf")
-    history = {"train_loss": [], "val_loss": [], "train_auc": [], "val_auc": []}
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+        "train_auc": [],
+        "val_auc": [],
+        "train_f1": [],
+        "val_f1": [],
+        "train_accuracy": [],
+        "val_accuracy": [],
+    }
 
-    current_datetime = datetime.now().strftime("%Y%m%d-%H%M%S")
+    current_datetime = datetime.now().strftime("%Y-%m-%d-%H")
     log_dir = os.path.join("logs", f"log_{MODEL_PARAM_STR}_{current_datetime}")
     os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=log_dir)
@@ -503,6 +576,7 @@ def run_model(
         model.train()
         running_loss = 0.0
         all_labels = []
+        all_scores = []
         all_preds = []
         iter = 0
 
@@ -529,7 +603,7 @@ def run_model(
             running_loss += loss.item() * images.size(0)
 
             all_labels.append(labels.cpu().numpy())
-            all_preds.append(outputs.detach().cpu().numpy())
+            all_scores.append(outputs.detach().cpu().numpy())
 
             if iter % args.log_every == 0:
                 writer.add_scalar(
@@ -541,14 +615,23 @@ def run_model(
         history["train_loss"].append(epoch_loss)
 
         all_labels = np.concatenate(all_labels)
-        all_preds = np.concatenate(all_preds)
-        all_probs = torch.softmax(torch.tensor(all_preds), dim=1).numpy()
+        all_scores = np.concatenate(all_scores)
+        all_probs = torch.softmax(torch.tensor(all_scores), dim=1).numpy()
+        all_preds = np.argmax(all_probs, axis=1)
+
+        # Warning if the model is predicting either all 0s or all 1s in train set
+        if np.all(all_preds == 0) or np.all(all_preds == 1):
+            print(
+                f"Bad Local Minima: Prediction all {np.unique(all_preds)} in train dataset"
+            )
 
         train_auc = roc_auc_score(all_labels, all_probs[:, 1])
         history["train_auc"].append(train_auc)
 
-        train_f1 = f1_score(all_labels, np.argmax(all_probs, axis=1))
-        train_accuracy = accuracy_score(all_labels, np.argmax(all_probs, axis=1))
+        train_f1 = f1_score(all_labels, all_preds)
+        train_accuracy = accuracy_score(all_labels, all_preds)
+        history["train_f1"].append(train_f1)
+        history["train_accuracy"].append(train_accuracy)
 
         if verbose:
             print(
@@ -566,7 +649,7 @@ def run_model(
         model.eval()
         val_running_loss = 0.0
         val_labels = []
-        val_preds = []
+        val_scores = []
 
         with torch.no_grad():
             for images, labels in val_loader:
@@ -576,20 +659,29 @@ def run_model(
                 val_running_loss += loss.item() * images.size(0)
 
                 val_labels.append(labels.cpu().numpy())
-                val_preds.append(outputs.cpu().numpy())
+                val_scores.append(outputs.cpu().numpy())
 
         val_loss = val_running_loss / len(val_loader.dataset)
         history["val_loss"].append(val_loss)
 
         val_labels = np.concatenate(val_labels)
-        val_preds = np.concatenate(val_preds)
-        val_probs = torch.softmax(torch.tensor(val_preds), dim=1).numpy()
+        val_scores = np.concatenate(val_scores)
+        val_probs = torch.softmax(torch.tensor(val_scores), dim=1).numpy()
+        val_preds = np.argmax(val_probs, axis=1)
+
+        # Warning if the model is predicting either all 0s or all 1s in val set
+        if np.all(val_preds == 0) or np.all(val_preds == 1):
+            print(
+                f"Bad Local Minima: Prediction all {np.unique(val_preds)} in val dataset"
+            )
 
         val_auc = roc_auc_score(val_labels, val_probs[:, 1])
         history["val_auc"].append(val_auc)
 
-        val_f1 = f1_score(val_labels, np.argmax(val_probs, axis=1))
-        val_accuracy = accuracy_score(val_labels, np.argmax(val_probs, axis=1))
+        val_f1 = f1_score(val_labels, val_preds)
+        val_accuracy = accuracy_score(val_labels, val_preds)
+        history["val_f1"].append(val_f1)
+        history["val_accuracy"].append(val_accuracy)
 
         if verbose:
             print(
@@ -634,7 +726,7 @@ def run_model(
     model.eval()
     test_running_loss = 0.0
     test_labels = []
-    test_preds = []
+    test_scores = []
 
     with torch.no_grad():
         for images, labels in test_loader:
@@ -644,16 +736,23 @@ def run_model(
             test_running_loss += loss.item() * images.size(0)
 
             test_labels.append(labels.cpu().numpy())
-            test_preds.append(outputs.cpu().numpy())
+            test_scores.append(outputs.cpu().numpy())
 
     test_loss = test_running_loss / len(test_loader.dataset)
     test_labels = np.concatenate(test_labels)
-    test_preds = np.concatenate(test_preds)
-    test_probs = torch.softmax(torch.tensor(test_preds), dim=1).numpy()
+    test_scores = np.concatenate(test_scores)
+    test_probs = torch.softmax(torch.tensor(test_scores), dim=1).numpy()
+    test_preds = np.argmax(test_probs, axis=1)
+
+    # Warning if the model is predicting either all 0s or all 1s in test set
+    if np.all(test_preds == 0) or np.all(test_preds == 1):
+        print(
+            f"Bad Local Minima: Prediction all {np.unique(test_preds)} in test dataset"
+        )
 
     test_auc = roc_auc_score(test_labels, test_probs[:, 1])
-    test_f1 = f1_score(test_labels, np.argmax(test_probs, axis=1))
-    test_accuracy = accuracy_score(test_labels, np.argmax(test_probs, axis=1))
+    test_f1 = f1_score(test_labels, test_preds)
+    test_accuracy = accuracy_score(test_labels, test_preds)
 
     history["test_loss"] = test_loss
     history["test_auc"] = test_auc

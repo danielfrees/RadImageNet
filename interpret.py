@@ -55,7 +55,14 @@ def visualize_image_with_gradcam(image_index: int, args, device):
     """
     data_path = f"./data/{args.data_dir}/images"
     model_dir = f"./data/{args.data_dir}/models"
-    model_name = f"best_model_{args.data_dir}_backbone_{args.backbone_model_name}_clf_{args.clf}_fold_{args.fold}_structure_{args.structure}_lr_{args.lr}_batchsize_{args.batch_size}_dropprob_{args.dropout_prob}_fcsizeratio_{args.fc_hidden_size_ratio}_numfilters_{args.num_filters}_kernelsize_{args.kernel_size}_epochs_{args.epoch}.pth"
+    MODEL_PARAM_STR = (
+        f"{args.data_dir}_backbone_{args.backbone_model_name}_clf_{args.clf}_fold_{args.fold}_"
+        f"structure_{args.structure}_lr_{args.lr}_batchsize_{args.batch_size}_"
+        f"dropprob_{args.dropout_prob}_fcsizeratio_{args.fc_hidden_size_ratio}_"
+        f"numfilters_{args.num_filters}_kernelsize_{args.kernel_size}_epochs_{args.epoch}_"
+        f"imagesize_{args.image_size}_lrdecay_{args.lr_decay_method}_lrbeta_{args.lr_decay_beta}"
+    )
+    model_name = f"best_model_{MODEL_PARAM_STR}.pth"
     model_path = os.path.join(model_dir, model_name)
     assert os.path.exists(model_path), f"Model weights not found at {model_path}"
 
