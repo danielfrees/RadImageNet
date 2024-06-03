@@ -196,8 +196,18 @@ def main() -> None:
     else:
         fold = "full"  # for logging filenames
 
+        if args.data_dir == "acl":
+            target_column = "acl_label"
+        elif args.data_dir == "breast":
+            target_column = "label"
+        else:
+            raise ValueError("Invalid Data Dir. Cannot determine target label.")
+
         train_df, val_df, test_df = get_full_data(
-            data_path, force_reload_data=False, verbose=True
+            data_path,
+            force_reload_data=False,
+            verbose=True,
+            target_column=target_column,
         )
 
         train_loader, val_loader, test_loader = create_dataloaders(

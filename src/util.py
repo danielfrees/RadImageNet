@@ -12,6 +12,35 @@ import re
 from sklearn.model_selection import train_test_split
 
 
+def generate_model_param_str(
+    data_dir,
+    backbone_model,
+    clf,
+    structure,
+    lr,
+    batch_size,
+    dropout_prob,
+    fc_hidden_size_ratio,
+    num_filters,
+    kernel_size,
+    epoch,
+    image_size,
+    lr_decay_method,
+    lr_decay_beta,
+):
+    """
+    Generates a model parameter string for a unique set of hyperparameters.
+    """
+    model_param_str = (
+        f"{data_dir}_backbone_{backbone_model}_clf_{clf}_fold_full_"
+        f"structure_{structure}_lr_{lr}_batchsize_{batch_size}_"
+        f"dropprob_{dropout_prob}_fcsizeratio_{fc_hidden_size_ratio}_"
+        f"numfilters_{num_filters}_kernelsize_{kernel_size}_epochs_{epoch}_"
+        f"imagesize_{image_size}_lrdecay_{lr_decay_method}_lrbeta_{lr_decay_beta}"
+    )
+    return model_param_str
+
+
 def merge_folds(files, directory, prefix):
     """
     Merge all folds into a single dataframe, handling duplicates.
@@ -35,15 +64,16 @@ def merge_folds(files, directory, prefix):
     return combined_df
 
 
-def check_and_resplit_data(train_df, val_df, test_df, verbose):
+def check_and_resplit_data(train_df, val_df, test_df, verbose, target_column):
     """
-    Check for overlap and re-split the data if necessary.
+    Check for overlap and re-split the data if necessary, stratifying based on the target column.
 
     Args:
         train_df (pd.DataFrame): Training data.
         val_df (pd.DataFrame): Validation data.
         test_df (pd.DataFrame): Test data.
         verbose (bool): Whether to print verbose output.
+        target_column (str): The name of the target column to stratify on.
 
     Returns:
         tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Re-split train, val, and test data.
@@ -60,9 +90,14 @@ def check_and_resplit_data(train_df, val_df, test_df, verbose):
             print("Data leakage detected! Re-splitting the data...")
 
         train_df, temp_df = train_test_split(
-            combined_df, test_size=0.25, random_state=42
+            combined_df,
+            test_size=0.25,
+            random_state=42,
+            stratify=combined_df[target_column],
         )
-        val_df, test_df = train_test_split(temp_df, test_size=0.6, random_state=42)
+        val_df, test_df = train_test_split(
+            temp_df, test_size=0.4, random_state=42, stratify=temp_df[target_column]
+        )  # Updated to have more val data
 
         total_size = len(combined_df)
         train_size = len(train_df)
@@ -82,7 +117,10 @@ def check_and_resplit_data(train_df, val_df, test_df, verbose):
 
 
 def get_full_data(
-    directory: str, force_reload_data: bool = False, verbose: bool = False
+    directory: str,
+    force_reload_data: bool = False,
+    verbose: bool = False,
+    target_column: str = "label",
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Get (and create, if needed) the full data for the specified directory.
@@ -91,6 +129,8 @@ def get_full_data(
         directory (str): path to the desired data. e.g. 'data/acl/dataframe'
         force_reload_data (bool): whether to force reloading the data even if it exists.
         verbose (bool): whether to print verbose output.
+        target_column (str): The name of the target column to stratify on.
+
 
     Returns:
         tuple[pd.DataFrame]: the training, validation, and test dataframes containing the
@@ -117,11 +157,16 @@ def get_full_data(
             data_dict[split] = pd.read_csv(split_path)
 
     train_df, val_df, test_df = check_and_resplit_data(
-        data_dict["train"], data_dict["val"], data_dict["test"], verbose
+        data_dict["train"], data_dict["val"], data_dict["test"], verbose, target_column
     )
     if verbose:
         print("Full train, validation, test CSVs created and DFs loaded.")
         print("===========================================================\n")
+
+    # Save the resplit dataframes to their respective paths
+    train_df.to_csv(os.path.join(directory, "train.csv"), index=False)
+    val_df.to_csv(os.path.join(directory, "val.csv"), index=False)
+    test_df.to_csv(os.path.join(directory, "test.csv"), index=False)
 
     return train_df, val_df, test_df
 

@@ -24,6 +24,7 @@ from sklearn.metrics import roc_auc_score, f1_score, accuracy_score
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+from src.util import generate_model_param_str
 
 
 # ===================== FullModel combines BackBone and Clf ==========================
@@ -524,12 +525,21 @@ def run_model(
     num_epochs = args.epoch
     verbose = args.verbose
 
-    MODEL_PARAM_STR = (
-        f"{args.data_dir}_backbone_{args.backbone_model_name}_clf_{args.clf}_fold_{fold}_"
-        f"structure_{args.structure}_lr_{args.lr}_batchsize_{args.batch_size}_"
-        f"dropprob_{args.dropout_prob}_fcsizeratio_{args.fc_hidden_size_ratio}_"
-        f"numfilters_{args.num_filters}_kernelsize_{args.kernel_size}_epochs_{args.epoch}_"
-        f"imagesize_{args.image_size}_lrdecay_{args.lr_decay_method}_lrbeta_{args.lr_decay_beta}"
+    MODEL_PARAM_STR = generate_model_param_str(
+        data_dir=args.data_dir,
+        backbone_model=args.backbone_model_name,
+        clf=args.clf,
+        structure=args.structure,
+        lr=args.lr,
+        batch_size=args.batch_size,
+        dropout_prob=args.dropout_prob,
+        fc_hidden_size_ratio=args.fc_hidden_size_ratio,
+        num_filters=args.num_filters,
+        kernel_size=args.kernel_size,
+        epoch=args.epoch,
+        image_size=args.image_size,
+        lr_decay_method=args.lr_decay_method,
+        lr_decay_beta=args.lr_decay_beta,
     )
 
     save_model_dir = os.path.join(partial_path, "models")

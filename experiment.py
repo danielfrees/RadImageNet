@@ -19,6 +19,7 @@ from matplotlib.lines import Line2D
 from main import main as run_experiment
 from tqdm import tqdm
 import seaborn as sns
+from src.util import generate_model_param_str
 
 
 def summarize_results(results_dirs, verbose=False):
@@ -313,14 +314,14 @@ def main():
     BACKBONE_MODELS = ["ResNet50", "DenseNet121"]
     CLFS = ["Linear", "NonLinear", "Conv", "ConvSkip"]
     LEARNING_RATES = [float(1e-4)]
-    BATCH_SIZES = [64, 128]
+    BATCH_SIZES = [64]  # 64, 128
     IMAGE_SIZES = [256]
     EPOCHS = [5]
     STRUCTURES = ["freezeall"]
     LR_DECAY_METHODS = ["beta", "cosine"]
     LR_DECAY_BETAS = [0.5]
     DROPOUT_PROBS = [0.5]
-    FC_HIDDEN_SIZE_RATIOS = [0.5, 1.0]
+    FC_HIDDEN_SIZE_RATIOS = [0.5, 1.0]  # 0.5, 1.0
     NUM_FILTERS = [4, 16]
     KERNEL_SIZES = [2]
     AMPS = [True]
@@ -391,18 +392,31 @@ def main():
             * len(LOG_EVERY),
             desc="Running experiments",
         ):
-            if clf not in ["Conv", "ConvSkip"]:
-                num_filters = None
-                num_filters_str = 4  # default val in main
-                kernel_size = None
-                kernel_size_str = 2  # default val in main
+            if clf not in [
+                "Conv",
+                "ConvSkip",
+            ]:  # don't need to expt with filters and kernel for non-conv clfs
+                num_filters = 4  # default val in main
+                kernel_size = 2  # default val in main
 
-            MODEL_PARAM_STR = (
-                f"{data_dir}_backbone_{backbone_model}_clf_{clf}_fold_full_"
-                f"structure_{structure}_lr_{lr}_batchsize_{batch_size}_"
-                f"dropprob_{dropout_prob}_fcsizeratio_{fc_hidden_size_ratio}_"
-                f"numfilters_{num_filters_str}_kernelsize_{kernel_size_str}_epochs_{epoch}_"
-                f"imagesize_{image_size}_lrdecay_{lr_decay_method}_lrbeta_{lr_decay_beta}"
+            if clf == "Linear":  # no need to vary fc_hidden_size
+                fc_hidden_size_ratio = 0.5  # default in main
+
+            MODEL_PARAM_STR = generate_model_param_str(
+                data_dir=data_dir,
+                backbone_model=backbone_model,
+                clf=clf,
+                structure=structure,
+                lr=lr,
+                batch_size=batch_size,
+                dropout_prob=dropout_prob,
+                fc_hidden_size_ratio=fc_hidden_size_ratio,
+                num_filters=num_filters,
+                kernel_size=kernel_size,
+                epoch=epoch,
+                image_size=image_size,
+                lr_decay_method=lr_decay_method,
+                lr_decay_beta=lr_decay_beta,
             )
 
             history_file = f"training_history_{MODEL_PARAM_STR}.csv"
