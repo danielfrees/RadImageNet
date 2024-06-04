@@ -18,6 +18,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms, models
 from PIL import Image
+import pandas as pd
 import numpy as np
 import os
 from argparse import Namespace
@@ -48,7 +49,7 @@ def load_image(image_path: str, device, args):
 def visualize_image_with_gradcam(image_index: int, args, device):
     """
     Use Grad-CAM to visualize importance of input image regions for img {image_index}
-    in the dataset for the specified task and using the model with the specified
+    in the validation dataset for the specified task and using the model with the specified
     hyperparameters.
 
     Hyperparameters and task defined in args.
@@ -84,8 +85,12 @@ def visualize_image_with_gradcam(image_index: int, args, device):
     for param in model.parameters():
         param.requires_grad = True
 
-    image_files = sorted(os.listdir(data_path))
-    image_path = os.path.join(data_path, image_files[image_index])
+    df_path = f"./data/{args.data_dir}/dataframe/val.csv"
+    df = pd.read_csv(df_path)
+    image_file, label = df.iloc[image_index]
+
+    image_path = os.path.join(data_path, image_file)
+
     input_tensor = load_image(image_path, device, args)
     input_tensor.requires_grad = True
 
@@ -109,8 +114,14 @@ def visualize_image_with_gradcam(image_index: int, args, device):
     if len(classifier_layers) > 1:
         target_layers += [classifier_layers[-1]]
 
+    # set target class
     positive_class = "malignant" if args.data_dir == "breast" else "yes"
-    class_idx = 1  # Assuming positive class is the second class
+    negative_class = "benign" if args.data_dir == "breast" else "no"
+    class_idx = None
+    if label == positive_class:
+        class_idx = 1  # pos class is second class
+    else:
+        class_idx = 0
 
     # fwd pass and backward pass to get the outputs and calculate gradients for Grad-CAM
     # !!! Don't be dumb and not compute gradients like me
@@ -149,10 +160,12 @@ def visualize_image_with_gradcam(image_index: int, args, device):
 
     fig, axes = plt.subplots(1, 2, figsize=(15, 10))
     axes[0].imshow(rgb_img)
-    axes[0].set_title("Original Image")
+    axes[0].set_title(f"Original Image\nTrue label: {label}")
     axes[0].axis("off")
     axes[1].imshow(visualization)
-    axes[1].set_title(f"Grad-CAM for {positive_class} on {args.backbone_model_name}")
+    axes[1].set_title(
+        f"Grad-CAM for target class = {label} on {args.backbone_model_name}\nPredicted: {class_idx}"
+    )
     axes[1].axis("off")
     plt.show()
 

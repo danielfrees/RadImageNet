@@ -528,6 +528,7 @@ def run_model(
     MODEL_PARAM_STR = generate_model_param_str(
         data_dir=args.data_dir,
         backbone_model=args.backbone_model_name,
+        pretrain=args.database,
         clf=args.clf,
         structure=args.structure,
         lr=args.lr,

@@ -47,14 +47,11 @@ def summarize_results(results_dirs, verbose=False):
         for filename in os.listdir(results_dir):
             if filename.startswith("training_history_") and filename.endswith(".csv"):
                 df = pd.read_csv(os.path.join(results_dir, filename))
-                # Extract hyperparameters from the filename
                 hyperparams = filename[len("training_history_") : -len(".csv")]
                 best_row = df.loc[df["val_auc"].idxmax()].copy()
 
-                # Extract hyperparameters into individual columns
                 hyperparam_dict = parse_hyperparams(hyperparams)
 
-                # Add task from parent directory or filename
                 task = results_dir.split(os.sep)[-2]
                 hyperparam_dict["task"] = task
 
@@ -85,6 +82,9 @@ def parse_hyperparams(hyperparams_str):
     while i < len(params):
         if params[i] == "backbone":
             hyperparams["backbone"] = params[i + 1]
+            i += 2
+        elif params[i] == "pretrain":
+            hyperparams["pretrain"] = params[i + 1]
             i += 2
         elif params[i] == "clf":
             hyperparams["clf"] = params[i + 1]
@@ -173,15 +173,17 @@ def create_visualizations(summary_df, verbose=False):
     }
     hyperparameters = [
         "backbone",
+        "pretrain",
         "clf",
         "structure",
-        "lr",
+        # "lr",
         "batchsize",
-        "dropprob",
+        # "dropprob",
         "fcsizeratio",
         "numfilters",
-        "kernelsize",
-        "epochs",
+        # "kernelsize",
+        # "epochs",
+        "lrdecay",
     ]
 
     total_tasks = len(tasks) * len(metrics) * len(hyperparameters)
@@ -309,19 +311,62 @@ def main():
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     args = parser.parse_args()
 
+    """v4 gridsearch expt
     DATA_DIRS = ["breast", "acl"]
     DATABASES = ["ImageNet", "RadImageNet"]
     BACKBONE_MODELS = ["ResNet50", "DenseNet121"]
     CLFS = ["Linear", "NonLinear", "Conv", "ConvSkip"]
     LEARNING_RATES = [float(1e-4)]
-    BATCH_SIZES = [64]  # 64, 128
+    BATCH_SIZES = [64]
     IMAGE_SIZES = [256]
     EPOCHS = [5]
     STRUCTURES = ["freezeall"]
     LR_DECAY_METHODS = ["beta", "cosine"]
     LR_DECAY_BETAS = [0.5]
     DROPOUT_PROBS = [0.5]
+    FC_HIDDEN_SIZE_RATIOS = [0.5, 1.0]
+    NUM_FILTERS = [4, 16]
+    KERNEL_SIZES = [2]
+    AMPS = [True]
+    USE_FOLDS = [False]
+    LOG_EVERY = [100]
+    """
+
+    """unfreeze gridsearch expt
+    DATA_DIRS = ["breast", "acl"]
+    DATABASES = ["ImageNet", "RadImageNet"]
+    BACKBONE_MODELS = ["ResNet50"] # ["ResNet50", "DenseNet121"]
+    CLFS = ["ConvSkip"] # ["Linear", "NonLinear", "Conv", "ConvSkip"]
+    LEARNING_RATES = [float(1e-4)]
+    BATCH_SIZES = [64]  # 64, 128
+    IMAGE_SIZES = [256]
+    EPOCHS = [5]
+    STRUCTURES = ["freezeall", "unfreezetop1", "unfreezetop2"]
+    LR_DECAY_METHODS = ["cosine"] # 'beta', 'cosine'
+    LR_DECAY_BETAS = [0.5]
+    DROPOUT_PROBS = [0.5]
     FC_HIDDEN_SIZE_RATIOS = [0.5, 1.0]  # 0.5, 1.0
+    NUM_FILTERS = [16]  # 4, 16
+    KERNEL_SIZES = [2]
+    AMPS = [True]
+    USE_FOLDS = [False]
+    LOG_EVERY = [100]
+
+    """
+
+    DATA_DIRS = ["breast", "acl"]
+    DATABASES = ["ImageNet", "RadImageNet"]
+    BACKBONE_MODELS = ["ResNet50", "DenseNet121"]
+    CLFS = ["Linear", "NonLinear", "Conv", "ConvSkip"]
+    LEARNING_RATES = [float(1e-4)]
+    BATCH_SIZES = [64]
+    IMAGE_SIZES = [256]
+    EPOCHS = [5]
+    STRUCTURES = ["freezeall"]
+    LR_DECAY_METHODS = ["beta", "cosine"]
+    LR_DECAY_BETAS = [0.5]
+    DROPOUT_PROBS = [0.5]
+    FC_HIDDEN_SIZE_RATIOS = [0.5, 1.0]
     NUM_FILTERS = [4, 16]
     KERNEL_SIZES = [2]
     AMPS = [True]
@@ -405,6 +450,7 @@ def main():
             MODEL_PARAM_STR = generate_model_param_str(
                 data_dir=data_dir,
                 backbone_model=backbone_model,
+                pretrain=database,
                 clf=clf,
                 structure=structure,
                 lr=lr,

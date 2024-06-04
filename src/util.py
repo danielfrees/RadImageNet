@@ -15,6 +15,7 @@ from sklearn.model_selection import train_test_split
 def generate_model_param_str(
     data_dir,
     backbone_model,
+    pretrain,
     clf,
     structure,
     lr,
@@ -32,7 +33,7 @@ def generate_model_param_str(
     Generates a model parameter string for a unique set of hyperparameters.
     """
     model_param_str = (
-        f"{data_dir}_backbone_{backbone_model}_clf_{clf}_fold_full_"
+        f"{data_dir}_backbone_{backbone_model}_pretrain_{pretrain}_clf_{clf}_fold_full_"
         f"structure_{structure}_lr_{lr}_batchsize_{batch_size}_"
         f"dropprob_{dropout_prob}_fcsizeratio_{fc_hidden_size_ratio}_"
         f"numfilters_{num_filters}_kernelsize_{kernel_size}_epochs_{epoch}_"
