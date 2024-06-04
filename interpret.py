@@ -7,10 +7,24 @@ and: https://arxiv.org/abs/1610.02391
 for the inspiration.
 
 Example Usage:
->>> python interpret.py --data_dir acl --database RadImageNet --backbone_model_name
-    DenseNet121 --clf Conv --fold full --structure freezeall --lr 0.0001
-    --batch_size 128 --dropout_prob 0.5 --fc_hidden_size_ratio 0.5
-    --num_filters 16 --kernel_size 2 --epoch 5 --image_index 0
+>>> python interpret.py \
+    --data_dir breast \
+    --database ImageNet \
+    --backbone_model_name ResNet50 \
+    --clf ConvSkip \
+    --fold full \
+    --structure freezeall \
+    --lr 0.0001 \
+    --batch_size 64 \
+    --dropout_prob 0.5 \
+    --fc_hidden_size_ratio 1.0 \
+    --num_filters 16 \
+    --kernel_size 2 \
+    --epoch 5 \
+    --image_size 256 \
+    --lr_decay_method cosine \
+    --lr_decay_beta 0.5 \
+    --image_index 0
 """
 
 import torch
@@ -18,8 +32,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms, models
 from PIL import Image
-import pandas as pd
 import numpy as np
+import pandas as pd
 import os
 from argparse import Namespace
 from pytorch_grad_cam import GradCAM
@@ -27,12 +41,13 @@ from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from matplotlib import pyplot as plt
 from src.model import load_model
-from src.util import validate_args
+from src.util import validate_args, generate_model_param_str
 from src.data import CaffeTransform
 import argparse
+import torch.nn.functional as F
 
 
-def load_image(image_path: str, device, args):
+def load_prep_image(image_path: str, device, args):
     transform = transforms.Compose(
         [
             transforms.Resize((args.image_size, args.image_size)),
@@ -54,14 +69,24 @@ def visualize_image_with_gradcam(image_index: int, args, device):
 
     Hyperparameters and task defined in args.
     """
-    data_path = f"./data/{args.data_dir}/images"
+    data_path = f"./data/{args.data_dir}"
     model_dir = f"./data/{args.data_dir}/models"
-    MODEL_PARAM_STR = (
-        f"{args.data_dir}_backbone_{args.backbone_model_name}_clf_{args.clf}_fold_{args.fold}_"
-        f"structure_{args.structure}_lr_{args.lr}_batchsize_{args.batch_size}_"
-        f"dropprob_{args.dropout_prob}_fcsizeratio_{args.fc_hidden_size_ratio}_"
-        f"numfilters_{args.num_filters}_kernelsize_{args.kernel_size}_epochs_{args.epoch}_"
-        f"imagesize_{args.image_size}_lrdecay_{args.lr_decay_method}_lrbeta_{args.lr_decay_beta}"
+    MODEL_PARAM_STR = generate_model_param_str(
+        data_dir=args.data_dir,
+        backbone_model=args.backbone_model_name,
+        pretrain=args.database,
+        clf=args.clf,
+        structure=args.structure,
+        lr=args.lr,
+        batch_size=args.batch_size,
+        dropout_prob=args.dropout_prob,
+        fc_hidden_size_ratio=args.fc_hidden_size_ratio,
+        num_filters=args.num_filters,
+        kernel_size=args.kernel_size,
+        epoch=args.epoch,
+        image_size=args.image_size,
+        lr_decay_method=args.lr_decay_method,
+        lr_decay_beta=args.lr_decay_beta,
     )
     model_name = f"best_model_{MODEL_PARAM_STR}.pth"
     model_path = os.path.join(model_dir, model_name)
@@ -74,7 +99,7 @@ def visualize_image_with_gradcam(image_index: int, args, device):
 
     model = load_model(device, args)
     print("======= Model Loaded ======")
-    # for name, layer in model.named_children():
+    # for name, layer in model.named_children():   # used to determine target layers
     #     print(f"{name}: {layer}")
     print("===========================")
     model.load_state_dict(model_state_dict)
@@ -91,14 +116,18 @@ def visualize_image_with_gradcam(image_index: int, args, device):
 
     image_path = os.path.join(data_path, image_file)
 
-    input_tensor = load_image(image_path, device, args)
+    input_tensor = load_prep_image(image_path, device, args)
     input_tensor.requires_grad = True
 
     # Set target layers for Grad-CAM
     target_layers = []
 
     if args.backbone_model_name.startswith("DenseNet"):
-        target_layers += [model.backbone.backbone[-1]]  # Last layer of DenseNet
+        # Select denseblock4 from the backbone
+        densenet_layers = list(model.backbone.backbone[0].children())
+        target_layers += [densenet_layers[-2]]  # Targeting the denseblock4 specifically
+        print("Target Layers")
+        print(target_layers)
     elif args.backbone_model_name.startswith("ResNet"):
         # Last few layers of ResNet
         resnet_layers = list(model.backbone.backbone.children())
@@ -109,30 +138,34 @@ def visualize_image_with_gradcam(image_index: int, args, device):
     else:
         raise ValueError("Unsupported model backbone")
 
-    # Add a layer from the classifier (if it has more than one layer)
-    classifier_layers = list(model.classifier.children())
-    if len(classifier_layers) > 1:
-        target_layers += [classifier_layers[-1]]
-
     # set target class
     positive_class = "malignant" if args.data_dir == "breast" else "yes"
     negative_class = "benign" if args.data_dir == "breast" else "no"
-    class_idx = None
+    label_idx = None
     if label == positive_class:
-        class_idx = 1  # pos class is second class
+        label_idx = 1
+    elif label == negative_class:
+        label_idx = 0
     else:
-        class_idx = 0
+        raise ValueError(f"Unrecognized label: {label}")
 
     # fwd pass and backward pass to get the outputs and calculate gradients for Grad-CAM
     # !!! Don't be dumb and not compute gradients like me
     output = model(input_tensor)
-    loss = nn.CrossEntropyLoss()(output, torch.tensor([class_idx]).to(device))
+    loss = nn.CrossEntropyLoss()(output, torch.tensor([label_idx]).to(device))
     model.zero_grad()
     loss.backward()
 
+    # use predicted label to set the target class! want to interpret affect on this prediciton
+    pred_idx = torch.argmax(output, dim=1)[0]
+    print(f"Prediction: {pred_idx}")
+    pred_str = (
+        positive_class if pred_idx == 1 else negative_class
+    )  # turn predicted label into string
+
     # run the grad-CAM algorithm
     cam = GradCAM(model=model, target_layers=target_layers)
-    targets = [ClassifierOutputTarget(class_idx)]
+    targets = [ClassifierOutputTarget(pred_idx)]
     grayscale_cam = cam(input_tensor=input_tensor, targets=targets)[0, :]
 
     if not np.any(grayscale_cam):
@@ -164,7 +197,7 @@ def visualize_image_with_gradcam(image_index: int, args, device):
     axes[0].axis("off")
     axes[1].imshow(visualization)
     axes[1].set_title(
-        f"Grad-CAM for target class = {label} on {args.backbone_model_name}\nPredicted: {class_idx}"
+        f"Grad-CAM for target class = {pred_str} on {args.backbone_model_name}\nPredicted: {pred_str}"
     )
     axes[1].axis("off")
     plt.show()
