@@ -22,50 +22,6 @@ import seaborn as sns
 from src.util import generate_model_param_str
 
 
-def summarize_results(results_dirs, verbose=False):
-    """
-    Summarizes the results from the experiments.
-
-    Args:
-        results_dirs (list): List of directories where the results are stored.
-        verbose (bool): Whether to print verbose output.
-
-    Returns:
-        pd.DataFrame: DataFrame containing the summarized results.
-    """
-    if verbose:
-        print("Summarizing results...")
-
-    summary_rows = []
-
-    for results_dir in results_dirs:
-        if not os.path.exists(results_dir):
-            if verbose:
-                print(f"Directory {results_dir} does not exist.")
-            continue
-
-        for filename in os.listdir(results_dir):
-            if filename.startswith("training_history_") and filename.endswith(".csv"):
-                df = pd.read_csv(os.path.join(results_dir, filename))
-                hyperparams = filename[len("training_history_") : -len(".csv")]
-                best_row = df.loc[df["val_auc"].idxmax()].copy()
-
-                hyperparam_dict = parse_hyperparams(hyperparams)
-
-                task = results_dir.split(os.sep)[-2]
-                hyperparam_dict["task"] = task
-
-                best_row = pd.concat([best_row, pd.Series(hyperparam_dict)])
-
-                summary_rows.append(best_row)
-
-    summary_df = pd.DataFrame(summary_rows)
-    summary_df.to_csv(os.path.join("results", "results.csv"), index=False)
-    if verbose:
-        print("Summary saved to results/results.csv")
-    return summary_df
-
-
 def parse_hyperparams(hyperparams_str):
     """
     Parses the hyperparameters from the string.
@@ -78,7 +34,8 @@ def parse_hyperparams(hyperparams_str):
     """
     params = hyperparams_str.split("_")
     hyperparams = {}
-    i = 0
+    hyperparams["task"] = params[0]
+    i = 1
     while i < len(params):
         if params[i] == "backbone":
             hyperparams["backbone"] = params[i + 1]
@@ -140,6 +97,51 @@ def parse_hyperparams(hyperparams_str):
         else:
             i += 1
     return hyperparams
+
+
+def summarize_results(results_dirs, filter_key=None, filter_value=None, verbose=False):
+    """
+    Summarizes the results from the experiments.
+
+    Args:
+        results_dirs (list): List of directories where the results are stored.
+        filter_key (str): Hyperparameter key to filter by.
+        filter_value (str): Value of the hyperparameter to filter by.
+        verbose (bool): Whether to print verbose output.
+
+    Returns:
+        pd.DataFrame: DataFrame containing the summarized results.
+    """
+    if verbose:
+        print("Summarizing results...")
+        print(f"Filtering for results where {filter_key} = {filter_value}")
+
+    summary_rows = []
+
+    for results_dir in results_dirs:
+        if not os.path.exists(results_dir):
+            if verbose:
+                print(f"Directory {results_dir} does not exist.")
+            continue
+
+        for filename in os.listdir(results_dir):
+            if filename.startswith("training_history_") and filename.endswith(".csv"):
+                hyperparams = filename[len("training_history_") : -len(".csv")]
+                hyperparam_dict = parse_hyperparams(hyperparams)
+
+                if filter_key and hyperparam_dict.get(filter_key) != filter_value:
+                    continue
+
+                df = pd.read_csv(os.path.join(results_dir, filename))
+                best_row = df.loc[df["val_auc"].idxmax()].copy()
+                best_row = pd.concat([best_row, pd.Series(hyperparam_dict)])
+                summary_rows.append(best_row)
+
+    summary_df = pd.DataFrame(summary_rows)
+    summary_df.to_csv(os.path.join("results", "results.csv"), index=False)
+    if verbose:
+        print("Summary saved to results/results.csv")
+    return summary_df
 
 
 def create_visualizations(summary_df, verbose=False):
@@ -308,6 +310,13 @@ def main():
             "visualize generates visualizations based on results.csv"
         ),
     )
+    parser.add_argument(
+        "--filter",
+        type=str,
+        nargs=2,
+        metavar=("KEY", "VALUE"),
+        help="Filter experiments by a specific hyperparameter and value (e.g., '--filter epochs 10')",
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     args = parser.parse_args()
 
@@ -333,41 +342,43 @@ def main():
     """
 
     """unfreeze gridsearch expt
-    DATA_DIRS = ["breast", "acl"]
-    DATABASES = ["ImageNet", "RadImageNet"]
-    BACKBONE_MODELS = ["ResNet50"] # ["ResNet50", "DenseNet121"]
-    CLFS = ["ConvSkip"] # ["Linear", "NonLinear", "Conv", "ConvSkip"]
-    LEARNING_RATES = [float(1e-4)]
-    BATCH_SIZES = [64]  # 64, 128
-    IMAGE_SIZES = [256]
-    EPOCHS = [5]
-    STRUCTURES = ["freezeall", "unfreezetop1", "unfreezetop2"]
-    LR_DECAY_METHODS = ["cosine"] # 'beta', 'cosine'
-    LR_DECAY_BETAS = [0.5]
-    DROPOUT_PROBS = [0.5]
-    FC_HIDDEN_SIZE_RATIOS = [0.5, 1.0]  # 0.5, 1.0
-    NUM_FILTERS = [16]  # 4, 16
-    KERNEL_SIZES = [2]
-    AMPS = [True]
-    USE_FOLDS = [False]
-    LOG_EVERY = [100]
 
-    """
-
+    # using best hyperparams from gridsearch v4
     DATA_DIRS = ["breast", "acl"]
-    DATABASES = ["ImageNet", "RadImageNet"]
-    BACKBONE_MODELS = ["ResNet50", "DenseNet121"]
-    CLFS = ["Linear", "NonLinear", "Conv", "ConvSkip"]
+    DATABASES = [None]   # automatically pick best database based on task
+    BACKBONE_MODELS = ["ResNet50"]
+    CLFS = ["ConvSkip"]
     LEARNING_RATES = [float(1e-4)]
     BATCH_SIZES = [64]
     IMAGE_SIZES = [256]
     EPOCHS = [5]
-    STRUCTURES = ["freezeall"]
-    LR_DECAY_METHODS = ["beta", "cosine"]
+    STRUCTURES = ["freezeall", "unfreezetop1", "unfreezetop2"]
+    LR_DECAY_METHODS = ["cosine"]
     LR_DECAY_BETAS = [0.5]
     DROPOUT_PROBS = [0.5]
-    FC_HIDDEN_SIZE_RATIOS = [0.5, 1.0]
-    NUM_FILTERS = [4, 16]
+    FC_HIDDEN_SIZE_RATIOS = [1.0]
+    NUM_FILTERS = [16]
+    KERNEL_SIZES = [2]
+    AMPS = [True]
+    USE_FOLDS = [False]
+    LOG_EVERY = [100]
+    """
+
+    # using best hyperparams from gridsearch v4
+    DATA_DIRS = ["breast", "acl"]
+    DATABASES = [None]  # automatically pick best database based on task
+    BACKBONE_MODELS = ["ResNet50"]
+    CLFS = ["ConvSkip"]
+    LEARNING_RATES = [float(1e-4)]
+    BATCH_SIZES = [64]
+    IMAGE_SIZES = [256]
+    EPOCHS = [10]
+    STRUCTURES = ["freezeall", "unfreezetop1", "unfreezetop2"]
+    LR_DECAY_METHODS = ["cosine"]
+    LR_DECAY_BETAS = [0.5]
+    DROPOUT_PROBS = [0.5]
+    FC_HIDDEN_SIZE_RATIOS = [1.0]
+    NUM_FILTERS = [16]
     KERNEL_SIZES = [2]
     AMPS = [True]
     USE_FOLDS = [False]
@@ -437,6 +448,26 @@ def main():
             * len(LOG_EVERY),
             desc="Running experiments",
         ):
+            # automatically set database based on better pretraining weights
+            # as determined by gridsearchv v4
+
+            # breast - imagenet is better
+            # acl - radimagenet is better
+
+            if database is None:
+                if data_dir == "acl":
+                    database = "RadImageNet"
+                elif data_dir == "breast":
+                    database = "ImageNet"
+                else:
+                    raise ValueError("bad db.")
+
+                if args.verbose:
+                    print("\nAutomatically setting database...")
+                    print(
+                        f"Set pretraining database to {database} for task {data_dir} based on gridsearch v4 suggestions."
+                    )
+
             if clf not in [
                 "Conv",
                 "ConvSkip",
@@ -540,7 +571,10 @@ def main():
             os.path.join("data", "acl", "models"),
             os.path.join("data", "breast", "models"),
         ]
-        summary_df = summarize_results(results_dirs, args.verbose)
+        filter_key, filter_value = args.filter if args.filter else (None, None)
+        summary_df = summarize_results(
+            results_dirs, filter_key, filter_value, args.verbose
+        )
 
     elif args.method == "visualize":
         results_csv = os.path.join("results", "results.csv")
