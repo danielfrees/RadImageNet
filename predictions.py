@@ -4,8 +4,8 @@
 """
 predictions.py
 
-Simple script to load a particular model, generate all of the test predictions,
-and save to csv along with the true labels.
+Simple script to load a particular model, generate predictions for train, validation,
+and test sets, and save to csv along with the true labels.
 """
 
 import argparse
@@ -20,7 +20,7 @@ from src.model import load_model
 
 def main() -> None:
     """
-    Load the best checkpointed model specified by the CLI args, eval on test data,
+    Load the best checkpointed model specified by the CLI args, eval on train, val, and test data,
     and save all preds and labels to predictions/preds_{MODEL_PARAM_STR}.csv.
     """
     parser = create_parser()
@@ -28,7 +28,6 @@ def main() -> None:
     validate_args(args, verbose=True)
 
     # ====== Set Device, priority cuda > mps > cpu =======
-    # discard parallelization for now
     device = None
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -66,7 +65,7 @@ def main() -> None:
         target_column=target_column,
     )
 
-    _, _, test_loader = create_dataloaders(
+    train_loader, val_loader, test_loader = create_dataloaders(
         train_df, val_df, test_df, args.batch_size, args.image_size, partial_path
     )
 
@@ -109,29 +108,42 @@ def main() -> None:
     if args.verbose:
         print("======\nModel loaded!\n======\n")
 
-    all_preds = []
-    all_labels = []
+    def generate_predictions(loader, output_file):
+        all_preds = []
+        all_labels = []
 
-    # ================= run model to generate all preds (test set) =================
-    with torch.no_grad():
-        for images, labels in test_loader:
-            images = images.to(device)
-            labels = labels.to(device)
+        with torch.no_grad():
+            for images, labels in loader:
+                images = images.to(device)
+                labels = labels.to(device)
 
-            outputs = model(images)
-            _, preds = torch.max(outputs, 1)
+                outputs = model(images)
+                _, preds = torch.max(outputs, 1)
 
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
+                all_preds.extend(preds.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
 
-    # Save all model predictions and the true labels to CSV
+        df = pd.DataFrame({"Prediction": all_preds, "Label": all_labels})
+        df.to_csv(output_file, index=False)
+
+        if args.verbose:
+            print(f"Predictions saved to {output_file}")
+
     os.makedirs("predictions", exist_ok=True)
-    output_file = os.path.join("predictions", f"preds_{MODEL_PARAM_STR}.csv")
-    df = pd.DataFrame({"Prediction": all_preds, "Label": all_labels})
-    df.to_csv(output_file, index=False)
 
-    if args.verbose:
-        print(f"Predictions saved to {output_file}")
+    # Generate predictions for train set
+    train_output_file = os.path.join(
+        "predictions", f"train_preds_{MODEL_PARAM_STR}.csv"
+    )
+    generate_predictions(train_loader, train_output_file)
+
+    # Generate predictions for validation set
+    val_output_file = os.path.join("predictions", f"val_preds_{MODEL_PARAM_STR}.csv")
+    generate_predictions(val_loader, val_output_file)
+
+    # Generate predictions for test set
+    test_output_file = os.path.join("predictions", f"test_preds_{MODEL_PARAM_STR}.csv")
+    generate_predictions(test_loader, test_output_file)
 
 
 if __name__ == "__main__":

@@ -123,6 +123,7 @@ def visualize_image_with_gradcam(image_index: int, args, device):
     image_file, label = df.iloc[image_index]
 
     image_path = os.path.join(data_path, image_file)
+    print(f"\nLoading Image: {image_path}\n")
 
     input_tensor = load_prep_image(image_path, device, args)
     input_tensor.requires_grad = True
