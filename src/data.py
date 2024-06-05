@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# coding: utf-8
+
 """data.py
 
 Handle setting up the datasets and dataloaders.

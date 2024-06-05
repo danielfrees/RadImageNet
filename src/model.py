@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# coding: utf-8
+
 """
 model.py
 
@@ -335,13 +338,35 @@ def get_compiled_model(
             - Optimizer: The optimizer configured for the model.
             - CrossEntropyLoss: The loss function to be used during training.
     """
-    # Load the base model with modified classifier layer
+    # Load the base model + classifier layer
     model = load_model(device, args)
 
     # Set up the optimizer
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
+    # Original experiments, grid search, freezing etc. used Adam as follows:
+    # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
 
-    # Define loss function
+    # AdamW optimizer: variant of Adam with better handling of weight decay
+    # optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-1)
+
+    # SGD with Nesterov momentum: often better for image classification tasks
+    # Breast best optimizer
+    # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True, weight_decay=1e-1)
+    optimizer = optim.SGD(
+        model.parameters(), lr=args.lr, momentum=0.9, nesterov=True, weight_decay=4e-1
+    )  # Acl best optimizer
+
+    # Plain SGD: simple and often effective, without Nesterov momentum
+    # optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=1e-4)
+
+    # RAdam (Rectified Adam): combines the benefits of adaptive learning rate and robustness
+    # optimizer = optim.RAdam(model.parameters(), lr=args.lr, weight_decay=1e-5)
+
+    # SparseAdam: a variant of Adam meant to handle sparse gradients more efficiently
+    # optimizer = optim.SparseAdam(model.parameters(), lr=args.lr)
+
+    # Adamax: a variant of Adam based on the infinity norm, suitable for embeddings and sparse data
+    # optimizer = optim.Adamax(model.parameters(), lr=args.lr, weight_decay=1e-4)
+
     loss = nn.CrossEntropyLoss()
 
     return model, optimizer, loss
@@ -460,8 +485,9 @@ def manage_layer_freezing(model: nn.Module, structure: str) -> None:
         ValueError: If the structure parameter does not follow the expected
             format or specifies an invalid option.
     """
-    children = list(model.children())
+    children = list(model.children())[0]
     total_layers = len(children)
+    # print(f"Total # of layers: {total_layers}")
 
     if structure == "freezeall":
         # Freeze all layers
@@ -491,7 +517,11 @@ def manage_layer_freezing(model: nn.Module, structure: str) -> None:
 
         # Unfreeze the last n_layers
         for i in range(total_layers - n_layers, total_layers):
-            for param in children[i].parameters():
+            # print("\nUnfreezing Layer:\n")
+            # print(children[i])
+            for param in children[
+                i
+            ].parameters():  # need to index into the backbone Sequential child (there is only one child)
                 param.requires_grad = True
 
     else:

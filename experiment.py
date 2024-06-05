@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# coding: utf-8
+
 """
 experiment.py
 
@@ -19,84 +22,7 @@ from matplotlib.lines import Line2D
 from main import main as run_experiment
 from tqdm import tqdm
 import seaborn as sns
-from src.util import generate_model_param_str
-
-
-def parse_hyperparams(hyperparams_str):
-    """
-    Parses the hyperparameters from the string.
-
-    Args:
-        hyperparams_str (str): The hyperparameters string.
-
-    Returns:
-        dict: A dictionary of hyperparameters.
-    """
-    params = hyperparams_str.split("_")
-    hyperparams = {}
-    hyperparams["task"] = params[0]
-    i = 1
-    while i < len(params):
-        if params[i] == "backbone":
-            hyperparams["backbone"] = params[i + 1]
-            i += 2
-        elif params[i] == "pretrain":
-            hyperparams["pretrain"] = params[i + 1]
-            i += 2
-        elif params[i] == "clf":
-            hyperparams["clf"] = params[i + 1]
-            i += 2
-        elif params[i] == "fold":
-            hyperparams["fold"] = params[i + 1]
-            i += 2
-        elif params[i] == "structure":
-            hyperparams["structure"] = params[i + 1]
-            i += 2
-        elif params[i] == "lr":
-            hyperparams["lr"] = params[i + 1]
-            i += 2
-        elif params[i] == "batchsize":
-            hyperparams["batchsize"] = params[i + 1]
-            i += 2
-        elif params[i] == "dropprob":
-            hyperparams["dropprob"] = params[i + 1]
-            i += 2
-        elif params[i] == "fcsizeratio":
-            hyperparams["fcsizeratio"] = params[i + 1]
-            i += 2
-        elif params[i] == "numfilters":
-            hyperparams["numfilters"] = params[i + 1]
-            i += 2
-        elif params[i] == "kernelsize":
-            hyperparams["kernelsize"] = params[i + 1]
-            i += 2
-        elif params[i] == "epochs":
-            hyperparams["epochs"] = params[i + 1]
-            i += 2
-        elif params[i] == "imagesize":
-            hyperparams["imagesize"] = params[i + 1]
-            i += 2
-        elif params[i] == "lrdecay":
-            hyperparams["lrdecay"] = params[i + 1]
-            i += 2
-        elif params[i] == "lrbeta":
-            hyperparams["lrbeta"] = params[i + 1]
-            i += 2
-        elif params[i] == "amp":
-            hyperparams["amp"] = params[i + 1]
-            i += 2
-        elif params[i] == "logevery":
-            hyperparams["logevery"] = params[i + 1]
-            i += 2
-        elif params[i] == "usefolds":
-            hyperparams["usefolds"] = params[i + 1]
-            i += 2
-        elif params[i] == "verbose":
-            hyperparams["verbose"] = params[i + 1]
-            i += 2
-        else:
-            i += 1
-    return hyperparams
+from src.util import generate_model_param_str, parse_hyperparams
 
 
 def summarize_results(results_dirs, filter_key=None, filter_value=None, verbose=False):
@@ -373,7 +299,14 @@ def main():
     BATCH_SIZES = [64]
     IMAGE_SIZES = [256]
     EPOCHS = [10]
-    STRUCTURES = ["freezeall", "unfreezetop1", "unfreezetop2"]
+    STRUCTURES = [
+        "freezeall",
+        "unfreezetop1",
+        "unfreezetop3",
+        "unfreezetop5",
+        "unfreezetop7",
+        "unfreezetop9",
+    ]  # unfreezeall is 9 layer groups for resnet50
     LR_DECAY_METHODS = ["cosine"]
     LR_DECAY_BETAS = [0.5]
     DROPOUT_PROBS = [0.5]

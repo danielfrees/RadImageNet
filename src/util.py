@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# coding: utf-8
+
 """util.py
 
 Handles train/test/validation splits. Handles argument parsing validation for main.
@@ -7,39 +10,7 @@ Handles train/test/validation splits. Handles argument parsing validation for ma
 import os
 import pandas as pd
 from typing import List
-from argparse import Namespace
-import re
 from sklearn.model_selection import train_test_split
-
-
-def generate_model_param_str(
-    data_dir,
-    backbone_model,
-    pretrain,
-    clf,
-    structure,
-    lr,
-    batch_size,
-    dropout_prob,
-    fc_hidden_size_ratio,
-    num_filters,
-    kernel_size,
-    epoch,
-    image_size,
-    lr_decay_method,
-    lr_decay_beta,
-):
-    """
-    Generates a model parameter string for a unique set of hyperparameters.
-    """
-    model_param_str = (
-        f"{data_dir}_backbone_{backbone_model}_pretrain_{pretrain}_clf_{clf}_fold_full_"
-        f"structure_{structure}_lr_{lr}_batchsize_{batch_size}_"
-        f"dropprob_{dropout_prob}_fcsizeratio_{fc_hidden_size_ratio}_"
-        f"numfilters_{num_filters}_kernelsize_{kernel_size}_epochs_{epoch}_"
-        f"imagesize_{image_size}_lrdecay_{lr_decay_method}_lrbeta_{lr_decay_beta}"
-    )
-    return model_param_str
 
 
 def merge_folds(files, directory, prefix):
@@ -241,109 +212,109 @@ def create_dfs(
     return train_df, val_df
 
 
-def validate_args(args: Namespace, verbose: bool = False) -> None:
+# ================== fun w hyperparams (logging and loading tools) ===============
+def generate_model_param_str(
+    data_dir,
+    backbone_model,
+    pretrain,
+    clf,
+    structure,
+    lr,
+    batch_size,
+    dropout_prob,
+    fc_hidden_size_ratio,
+    num_filters,
+    kernel_size,
+    epoch,
+    image_size,
+    lr_decay_method,
+    lr_decay_beta,
+):
     """
-    Validates the arguments provided to the script, ensuring that they refer to
-    valid directories, databases, model structures, and model names.
+    Generates a model parameter string for a unique set of hyperparameters.
+    """
+    model_param_str = (
+        f"{data_dir}_backbone_{backbone_model}_pretrain_{pretrain}_clf_{clf}_fold_full_"
+        f"structure_{structure}_lr_{lr}_batchsize_{batch_size}_"
+        f"dropprob_{dropout_prob}_fcsizeratio_{fc_hidden_size_ratio}_"
+        f"numfilters_{num_filters}_kernelsize_{kernel_size}_epochs_{epoch}_"
+        f"imagesize_{image_size}_lrdecay_{lr_decay_method}_lrbeta_{lr_decay_beta}"
+    )
+    return model_param_str
+
+
+def parse_hyperparams(hyperparams_str):
+    """
+    Parses the model hyperparameters from the string into a dict.
 
     Args:
-        args (Namespace): Command line arguments parsed by argparse.
+        hyperparams_str (str): The model hyperparameters string.
 
-    Raises:
-        FileNotFoundError: If the data directory does not exist.
-        ValueError: If the provided database, structure, or model name is invalid.
+    Returns:
+        dict: A dictionary of hyperparameters.
     """
-    # Validate data directory
-    full_path = os.path.join("data", args.data_dir)
-    valid_dirs = ["acl", "breast"]
-    if not os.path.isdir(full_path):
-        raise FileNotFoundError(f"The directory specified does not exist: {full_path}")
-    if args.data_dir not in valid_dirs:
-        raise ValueError(
-            f"Data directory '{args.data_dir}' not yet supported. Please choose from {valid_dirs}."
-        )
-
-    # Validate database choice
-    valid_databases = ["RadImageNet", "ImageNet"]
-    if args.database not in valid_databases:
-        raise ValueError(
-            f"Pre-trained database '{args.database}' does not exist. Please choose from {valid_databases}."
-        )
-
-    # Validate structure option
-    if args.structure not in ["unfreezeall", "freezeall"] and not re.match(
-        r"unfreezetop\d+", args.structure
-    ):
-        raise ValueError(
-            "Freeze any layers? Choose to unfreezeall/freezeall/unfreezetop{i} layers for the network."
-        )
-
-    # Validate model name
-    valid_models = ["ResNet50", "DenseNet121", "InceptionV3"]
-    if args.backbone_model_name not in valid_models:
-        raise ValueError(
-            (
-                f"Pre-trained network '{args.backbone_model_name}' does not exist. "
-                "Please choose from {valid_models}."
-            )
-        )
-
-    # Validate clf name
-    valid_clfs = ["Linear", "NonLinear", "Conv", "ConvSkip"]
-    if args.clf not in valid_clfs:
-        raise ValueError(
-            f"Clf '{args.clf}' does not exist. Please choose from {valid_clfs}."
-        )
-
-    # Validate batch size
-    if args.batch_size <= 0:
-        raise ValueError("Batch size must be a positive integer.")
-
-    # Validate image size
-    if args.image_size <= 0:
-        raise ValueError("Image size must be a positive integer.")
-
-    # Validate number of epochs
-    if args.epoch <= 0:
-        raise ValueError("Number of epochs must be a positive integer.")
-
-    # Validate learning rate
-    if args.lr <= 0:
-        raise ValueError("Learning rate must be a positive float.")
-
-    # Validate learning rate decay method
-    valid_lr_decay_methods = [None, "cosine", "beta"]
-    if args.lr_decay_method not in valid_lr_decay_methods:
-        raise ValueError(
-            (
-                f"LR Decay Method '{args.lr_decay_method}' does not exist. "
-                f"Please choose from {valid_lr_decay_methods}."
-            )
-        )
-
-    # Validate learning rate decay beta if method is 'beta'
-    if args.lr_decay_method == "beta" and (
-        args.lr_decay_beta <= 0 or args.lr_decay_beta >= 1
-    ):
-        raise ValueError(
-            "LR Decay Beta must be a float between 0 and 1 when using 'beta' decay method."
-        )
-
-    # Validate dropout probability
-    if not (0 <= args.dropout_prob <= 1):
-        raise ValueError("Dropout probability must be between 0 and 1.")
-
-    # Validate fully connected hidden size ratio
-    if not (0 <= args.fc_hidden_size_ratio):
-        raise ValueError("Fully connected hidden size ratio must be greater than 0.")
-
-    # Validate number of filters
-    if args.num_filters <= 0:
-        raise ValueError("Number of filters must be a positive integer.")
-
-    # Validate kernel size
-    if args.kernel_size <= 0:
-        raise ValueError("Kernel size must be a positive integer.")
-
-    if verbose:
-        print("All arguments are valid.")
+    params = hyperparams_str.split("_")
+    hyperparams = {}
+    hyperparams["task"] = params[0]
+    i = 1
+    while i < len(params):
+        if params[i] == "backbone":
+            hyperparams["backbone"] = params[i + 1]
+            i += 2
+        elif params[i] == "pretrain":
+            hyperparams["pretrain"] = params[i + 1]
+            i += 2
+        elif params[i] == "clf":
+            hyperparams["clf"] = params[i + 1]
+            i += 2
+        elif params[i] == "fold":
+            hyperparams["fold"] = params[i + 1]
+            i += 2
+        elif params[i] == "structure":
+            hyperparams["structure"] = params[i + 1]
+            i += 2
+        elif params[i] == "lr":
+            hyperparams["lr"] = params[i + 1]
+            i += 2
+        elif params[i] == "batchsize":
+            hyperparams["batchsize"] = params[i + 1]
+            i += 2
+        elif params[i] == "dropprob":
+            hyperparams["dropprob"] = params[i + 1]
+            i += 2
+        elif params[i] == "fcsizeratio":
+            hyperparams["fcsizeratio"] = params[i + 1]
+            i += 2
+        elif params[i] == "numfilters":
+            hyperparams["numfilters"] = params[i + 1]
+            i += 2
+        elif params[i] == "kernelsize":
+            hyperparams["kernelsize"] = params[i + 1]
+            i += 2
+        elif params[i] == "epochs":
+            hyperparams["epochs"] = params[i + 1]
+            i += 2
+        elif params[i] == "imagesize":
+            hyperparams["imagesize"] = params[i + 1]
+            i += 2
+        elif params[i] == "lrdecay":
+            hyperparams["lrdecay"] = params[i + 1]
+            i += 2
+        elif params[i] == "lrbeta":
+            hyperparams["lrbeta"] = params[i + 1]
+            i += 2
+        elif params[i] == "amp":
+            hyperparams["amp"] = params[i + 1]
+            i += 2
+        elif params[i] == "logevery":
+            hyperparams["logevery"] = params[i + 1]
+            i += 2
+        elif params[i] == "usefolds":
+            hyperparams["usefolds"] = params[i + 1]
+            i += 2
+        elif params[i] == "verbose":
+            hyperparams["verbose"] = params[i + 1]
+            i += 2
+        else:
+            i += 1
+    return hyperparams

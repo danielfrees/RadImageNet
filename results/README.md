@@ -1,5 +1,12 @@
 # Results
 
+
+## Scripts:
+
+`vis-unfreezing.py` is a simple script which visualizes the trends of unfreezing across the ACL and Breast tasks.
+
+## GridSearch Versioning Descriptions:
+
 v0- slightly buggy gridsearch
 
 v1- debugged the gridsearch (partial indicates the expt did not fully finish)
