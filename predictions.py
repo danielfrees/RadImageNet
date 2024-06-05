@@ -111,6 +111,8 @@ def main() -> None:
     def generate_predictions(loader, output_file):
         all_preds = []
         all_labels = []
+        all_scores = []
+        all_probs = []
 
         with torch.no_grad():
             for images, labels in loader:
@@ -119,11 +121,21 @@ def main() -> None:
 
                 outputs = model(images)
                 _, preds = torch.max(outputs, 1)
+                probs = torch.softmax(outputs, dim=1)
 
+                all_scores.extend(outputs.cpu().numpy())
+                all_probs.extend(probs.cpu().numpy())
                 all_preds.extend(preds.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
 
-        df = pd.DataFrame({"Prediction": all_preds, "Label": all_labels})
+        df = pd.DataFrame(
+            {
+                "Prediction": all_preds,
+                "Label": all_labels,
+                "Score": all_scores,
+                "Prob": all_probs,
+            }
+        )
         df.to_csv(output_file, index=False)
 
         if args.verbose:
