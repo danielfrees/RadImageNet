@@ -1,4 +1,10 @@
-# Towards Optimal Convolutional Transfer Learning Architectures for Downstream Medical Classification Tasks
+# BACON: Breast and Acl CONvolutional Networks
+
+Highly performant breast lesion malignancy detection and ACL tear detection models built using transfer-learning of large CNNs. Interpretable model decisions powered by Grad-CAM.
+
+## Related Article: Towards Optimal Convolutional Transfer Learning Architectures for Downstream Medical Classification Tasks
+
+(Arxiv Link Pending)
 
 ## Main Scripts
 
