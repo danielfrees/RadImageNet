@@ -1,0 +1,80 @@
+---
+title: "results_stats_analysis"
+format: html
+editor: visual
+---
+
+```{r}
+best_acl_imagenet <- data.table::fread("../predictions/test_preds_acl_backbone_ResNet50_pretrain_ImageNet_clf_ConvSkip_fold_full_structure_unfreezetop5_lr_0.001_batchsize_64_dropprob_0.5_fcsizeratio_0.5_numfilters_16_kernelsize_4_epochs_30_imagesize_256_lrdecay_cosine_lrbeta_0.5.csv")
+best_acl_radimagenet <- data.table::fread("../predictions/test_preds_acl_backbone_ResNet50_pretrain_RadImageNet_clf_ConvSkip_fold_full_structure_unfreezetop5_lr_0.001_batchsize_64_dropprob_0.5_fcsizeratio_0.5_numfilters_16_kernelsize_4_epochs_30_imagesize_256_lrdecay_cosine_lrbeta_0.5.csv")
+best_breast_imagenet <- data.table::fread("../predictions/test_preds_breast_backbone_ResNet50_pretrain_ImageNet_clf_ConvSkip_fold_full_structure_unfreezetop5_lr_0.0005_batchsize_64_dropprob_0.5_fcsizeratio_1.0_numfilters_16_kernelsize_2_epochs_30_imagesize_256_lrdecay_cosine_lrbeta_0.5.csv")
+best_breast_radimagenet <- data.table::fread("../predictions/test_preds_breast_backbone_ResNet50_pretrain_RadImageNet_clf_ConvSkip_fold_full_structure_unfreezetop5_lr_0.0005_batchsize_64_dropprob_0.5_fcsizeratio_1.0_numfilters_16_kernelsize_2_epochs_30_imagesize_256_lrdecay_cosine_lrbeta_0.5.csv")
+```
+
+```{r}
+# Function to extract the positive class probability
+extract_prob_positive <- function(x) {
+  # Remove the square brackets
+  clean_str = gsub("\\[|\\]", "", x)
+  
+  # Trim whitespace
+  clean_str = trimws(clean_str)
+  
+  # Split the string by space
+  parts = strsplit(clean_str, "\\s+")[[1]]
+  
+  # Convert the second element to numeric (assuming it's the positive class probability)
+  as.numeric(parts[2])
+}
+best_acl_imagenet$Prob_Pos <- sapply(best_acl_imagenet$Prob, extract_prob_positive)
+best_acl_radimagenet$Prob_Pos <- sapply(best_acl_radimagenet$Prob, extract_prob_positive)
+best_breast_imagenet$Prob_Pos <- sapply(best_breast_imagenet$Prob, extract_prob_positive)
+best_breast_radimagenet$Prob_Pos <- sapply(best_breast_radimagenet$Prob, extract_prob_positive)
+```
+
+```{r}
+roc_acl_imagenet <- pROC::roc(best_acl_imagenet$Label, best_acl_imagenet$Prob_Pos)
+roc_acl_radimagenet <- pROC::roc(best_acl_radimagenet$Label, best_acl_radimagenet$Prob_Pos)
+print(pROC::roc.test(roc_acl_imagenet, roc_acl_radimagenet, method="delong"))
+```
+
+```{r}
+roc_breast_imagenet <- pROC::roc(best_breast_imagenet$Label, best_breast_imagenet$Prob_Pos)
+roc_breast_radimagenet <- pROC::roc(best_breast_radimagenet$Label, best_breast_radimagenet$Prob_Pos)
+print(pROC::roc.test(roc_breast_imagenet, roc_breast_radimagenet, method="delong"))
+```
+
+```{r}
+correct_imagenet <- best_breast_imagenet$Prediction == best_breast_imagenet$Label
+correct_radimagenet <- best_breast_radimagenet$Prediction == best_breast_radimagenet$Label
+
+table <- matrix(ncol = 2, nrow = 2, data = 0)
+colnames(table) <- c("RadImageNet Correct", "RadImageNet Incorrect")
+rownames(table) <- c("ImageNet Correct", "ImageNet Incorrect")
+
+table[1, 1] <- sum(correct_imagenet & correct_radimagenet)  # Both correct
+table[1, 2] <- sum(correct_imagenet & !correct_radimagenet) # ImageNet correct, RadImageNet incorrect
+table[2, 1] <- sum(!correct_imagenet & correct_radimagenet) # ImageNet incorrect, RadImageNet correct
+table[2, 2] <- sum(!correct_imagenet & !correct_radimagenet) # Both incorrect
+
+contingency_table <- as.table(table)
+print(mcnemar.test(contingency_table))
+
+```
+
+```{r}
+correct_imagenet <- best_acl_imagenet$Prediction == best_acl_imagenet$Label
+correct_radimagenet <- best_acl_radimagenet$Prediction == best_acl_radimagenet$Label
+
+table <- matrix(ncol = 2, nrow = 2, data = 0)
+colnames(table) <- c("RadImageNet Correct", "RadImageNet Incorrect")
+rownames(table) <- c("ImageNet Correct", "ImageNet Incorrect")
+
+table[1, 1] <- sum(correct_imagenet & correct_radimagenet)  # Both correct
+table[1, 2] <- sum(correct_imagenet & !correct_radimagenet) # ImageNet correct, RadImageNet incorrect
+table[2, 1] <- sum(!correct_imagenet & correct_radimagenet) # ImageNet incorrect, RadImageNet correct
+table[2, 2] <- sum(!correct_imagenet & !correct_radimagenet) # Both incorrect
+
+contingency_table <- as.table(table)
+print(mcnemar.test(contingency_table))
+```
