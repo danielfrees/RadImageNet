@@ -1,4 +1,4 @@
-# BACON: Breast and Acl CONvolutional Networks
+# BACON: Breast and Acl COvolutional Networks
 
 Highly performant breast lesion malignancy detection and ACL tear detection models built using transfer-learning of large CNNs. Interpretable model decisions powered by Grad-CAM.
 
